@@ -15,6 +15,64 @@ using namespace ddynamic_reconfigure;
 #define OPTICAL_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << "camera_" << STREAM_NAME(sip) << "_optical_frame")).str()
 #define ALIGNED_DEPTH_TO_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << "camera_aligned_depth_to_" << STREAM_NAME(sip) << "_frame")).str()
 
+namespace
+{
+    void box_filter(const uint8_t* src, int* dst, int *buf, int width, int height, int r)
+    {
+        int* sum_x = buf;
+        int* sum_xy = dst;
+
+        memset(sum_x, 0, width * height * sizeof(sum_x[0]));
+        memset(sum_xy, 0, width * height * sizeof(sum_xy[0]));
+
+        for (int y = 0; y < height; ++y)
+        {
+            const uint8_t *p_src = src + (y * width);
+            int *p_sum = sum_x + (y * width);
+
+            p_sum[0] = r * p_src[0];
+            for (int xx = 0; xx <= r; ++xx) p_sum[0] += int(p_src[xx]);
+
+            for (int x = 1;         x < r + 1;     ++x) p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[0]);
+            for (int x = r + 1;     x < width - r; ++x) p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[x - r - 1]);
+            for (int x = width - r; x < width;     ++x) p_sum[x] = p_sum[x - 1] + int(p_src[width - 1]) - int(p_src[x - r - 1]);
+        }
+        { // y = 0
+            for (int x = 0; x < width; ++x) {
+                int *p_src = sum_x + x;
+                int *p_sum = sum_xy + x;
+
+                p_sum[0] = r * p_src[0];
+                for (int yy = 0; yy <= r; ++yy) p_sum[0] += int(p_src[yy * width]);
+            }
+        }
+        for (int y = 1; y < r + 1; ++y)
+        {
+            for (int x = 0; x < width; ++x) {
+                int *p_src = sum_x + x;
+                int *p_sum = sum_xy + x;
+                p_sum[y * width] = p_sum[(y - 1) * width] + int(p_src[(y + r) * width]) - int(p_src[0 * width]);
+            }
+        }
+        for (int y = r + 1; y < height - r; ++y)
+        {
+            for (int x = 0; x < width; ++x) {
+                int *p_src = sum_x + x;
+                int *p_sum = sum_xy + x;
+                p_sum[y * width] = p_sum[(y - 1) * width] + int(p_src[(y + r) * width]) - int(p_src[(y - r - 1) * width]);
+            }
+        }
+        for (int y = height - r; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x) {
+                int *p_src = sum_x + x;
+                int *p_sum = sum_xy + x;
+                p_sum[y * width] = p_sum[(y - 1) * width] + int(p_src[(height - 1) * width]) - int(p_src[(y - r - 1) * width]);
+            }
+        }
+    }
+}
+
 SyncedImuPublisher::SyncedImuPublisher(ros::Publisher imu_publisher, std::size_t waiting_list_size):
             _publisher(imu_publisher), _pause_mode(false),
             _waiting_list_size(waiting_list_size)
