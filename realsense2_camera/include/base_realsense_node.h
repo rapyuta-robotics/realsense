@@ -235,6 +235,11 @@ namespace realsense2_camera
         float _clipping_distance;
         bool _allow_no_texture_points;
 
+        bool _enable_bright_region_removal;
+        int _r_erosion;
+        int _r_dilation;
+        int _bright_thresh;
+
         double _linear_accel_cov;
         double _angular_velocity_cov;
         bool  _hold_back_imu_for_frames;
@@ -286,11 +291,6 @@ namespace realsense2_camera
         std::map<stream_index_pair, rs2_extrinsics> _depth_to_other_extrinsics;
 
         const std::string _namespace;
-
-        bool _enable_bright_region_removal;
-        int _r_erosion;
-        int _r_dilation;
-        int _bright_thresh;
     };//end class
 
 }

@@ -566,6 +566,11 @@ void BaseRealSenseNode::getParameters()
     _pnh.param("angular_velocity_cov", _angular_velocity_cov, static_cast<double>(0.01));
     _pnh.param("hold_back_imu_for_frames", _hold_back_imu_for_frames, HOLD_BACK_IMU_FOR_FRAMES);
     _pnh.param("publish_odom_tf", _publish_odom_tf, PUBLISH_ODOM_TF);
+
+    _pnh.param("enable_bright_region_removal", _enable_bright_region_removal, ENABLE_BRIGHT_REGION_REMOVAL);
+    _pnh.param("r_erosion", _r_erosion, static_cast<int>(2));
+    _pnh.param("r_dilation", _r_dilation, static_cast<int>(15));
+    _pnh.param("bright_thresh", _bright_thresh, static_cast<int>(220));
 }
 
 void BaseRealSenseNode::setupDevice()
@@ -1523,8 +1528,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                     if (ir)
                     {
                         // Bright region removal
-                        // TODO 1: parameter initialization
-                        // TODO 2: to plugin?
+                        // TODO: to plugin?
                         bright_removed = remove_bright_regions(depth_frame, ir);
                     }
                     else{
