@@ -287,6 +287,7 @@ namespace realsense2_camera
 
         const std::string _namespace;
 
+        bool _enable_bright_region_removal;
         int _r_erosion;
         int _r_dilation;
         int _bright_thresh;

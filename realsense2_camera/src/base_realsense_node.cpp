@@ -199,6 +199,11 @@ BaseRealSenseNode::BaseRealSenseNode(ros::NodeHandle& nodeHandle,
     _stream_name[RS2_STREAM_ACCEL] = "accel";
 
     _stream_name[RS2_STREAM_POSE] = "pose";
+
+    _r_erosion = 2;
+    _r_dilation = 15;
+    _bright_thresh = 220;
+    _enable_bright_region_removal = true;
 }
 
 void BaseRealSenseNode::toggleSensors(bool enabled)
@@ -1499,11 +1504,33 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 ROS_DEBUG("Frameset contain (%s, %d, %s %d) frame. frame_number: %llu ; frame_TS: %f ; ros_TS(NSec): %lu",
                             rs2_stream_to_string(stream_type), stream_index, rs2_format_to_string(stream_format), stream_unique_id, frame.get_frame_number(), frame_time, t.toNSec());
             }
-            // Clip depth_frame for max range:
+            // Filter depth
+            // 1. Clip depth_frame for max range:
+            // 2. Remove bright regions:
+            bool bright_removed(false);
             rs2::depth_frame depth_frame = frameset.get_depth_frame();
-            if (depth_frame && _clipping_distance > 0)
+            if (depth_frame)
+            {
+                if (_clipping_distance > 0)
             {
                 clip_depth(depth_frame, _clipping_distance);
+            }
+
+                if (_enable_bright_region_removal)
+                {
+                    rs2::frameset fs = frame.as<rs2::frameset>();
+                    auto ir = fs.as<rs2::frameset>().get_infrared_frame(1);
+                    if (ir)
+                    {
+                        // Bright region removal
+                        // TODO 1: parameter initialization
+                        // TODO 2: to plugin?
+                        bright_removed = remove_bright_regions(depth_frame, ir);
+                    }
+                    else{
+                        ROS_WARN("Skip bright region depth removal (No infra1 frame received)");
+                    }
+                }
             }
 
             ROS_DEBUG("num_filters: %d", static_cast<int>(_filters.size()));
@@ -1578,8 +1605,15 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 {
                     if (0 != _pointcloud_publisher.getNumSubscribers())
                     {
+                        if (_enable_bright_region_removal && (!bright_removed))
+                        {
+                            ROS_WARN("Skip publishing pointcloud (Failed bright region depth removal)");
+                        }
+                        else
+                        {
                         ROS_DEBUG("Publish pointscloud");
                         publishPointCloud(f.as<rs2::points>(), t, frameset);
+                    }
                     }
                     continue;
                 }
