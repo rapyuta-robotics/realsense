@@ -71,6 +71,26 @@ namespace
             }
         }
     }
+
+    void mark_bright_regions(const uint8_t* guide, uint8_t* bright, int width, int height, int r_ero, int r_dil, int thresh)
+    {
+        std::unique_ptr<int []> buf(new int[width * height]);
+        std::unique_ptr<int []> sum(new int[width * height]);
+        int* p_buf = buf.get();
+        int* p_sum = sum.get();
+
+        // set 1 if brighter than 'thresh'
+        for(int i = 0; i < width * height; ++i) bright[i] = (guide[i] > thresh ? 1 : 0);
+
+        // if all the pixels around are brighter than 'thresh'
+        box_filter(bright, p_sum, p_buf, width, height, r_ero); // erosion
+        int max_sum = (2 * r_ero + 1) * (2 * r_ero + 1);
+        for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] == max_sum ? 1 : 0);
+
+        // if any of the pixels around are bright
+        box_filter(bright, p_sum, p_buf, width, height, r_dil); // dilation
+        for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] > 0 ? 1 : 0);
+    }
 }
 
 SyncedImuPublisher::SyncedImuPublisher(ros::Publisher imu_publisher, std::size_t waiting_list_size):
