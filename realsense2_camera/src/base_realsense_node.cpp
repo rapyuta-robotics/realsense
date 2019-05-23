@@ -1092,6 +1092,41 @@ void BaseRealSenseNode::clip_depth(rs2::depth_frame depth_frame, float clipping_
     }
 }
 
+bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, const rs2::video_frame& ir)
+{
+    const uint16_t INVALID_DEPTH = 0;
+
+    int width = depth_frame.get_width();
+    int height = depth_frame.get_height();
+
+    if ((width != ir.get_width()) || (height != ir.get_height()))
+    {
+        ROS_WARN("Disabled bright region depth removal (Sizes of infra1 and depth frames are different)");
+        return false;
+    }
+
+    if (std::min(_r_erosion, _r_dilation) < 0 ||
+            std::max(_r_erosion, _r_dilation) > ((std::min(width, height) - 1) / 2))
+    {
+        ROS_WARN("Disabled bright region depth removal (Invalid region parameters)");
+        return false;
+    }
+
+    const uint8_t* p_ir = reinterpret_cast<uint8_t*>(const_cast<void*>(ir.get_data()));
+
+    std::unique_ptr<uint8_t []> invalid_map(new uint8_t[width * height]);
+    uint8_t* p_invalid = invalid_map.get();
+    mark_bright_regions(p_ir, p_invalid, width, height, _r_erosion, _r_dilation, _bright_thresh);
+
+    uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
+    for (int i = 0; i < width * height; ++i)
+    {
+        if (p_invalid[i]) p_depth[i] = INVALID_DEPTH;
+    }
+
+    return true;
+}
+
 BaseRealSenseNode::CIMUHistory::CIMUHistory(size_t size)
 {
     m_max_size = size;
