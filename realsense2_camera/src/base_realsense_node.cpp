@@ -199,11 +199,6 @@ BaseRealSenseNode::BaseRealSenseNode(ros::NodeHandle& nodeHandle,
     _stream_name[RS2_STREAM_ACCEL] = "accel";
 
     _stream_name[RS2_STREAM_POSE] = "pose";
-
-    _r_erosion = 2;
-    _r_dilation = 15;
-    _bright_thresh = 220;
-    _enable_bright_region_removal = true;
 }
 
 void BaseRealSenseNode::toggleSensors(bool enabled)
