@@ -1512,9 +1512,9 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
             if (depth_frame)
             {
                 if (_clipping_distance > 0)
-            {
-                clip_depth(depth_frame, _clipping_distance);
-            }
+                {
+                    clip_depth(depth_frame, _clipping_distance);
+                }
 
                 if (_enable_bright_region_removal)
                 {
@@ -1610,9 +1610,9 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                         }
                         else
                         {
-                        ROS_DEBUG("Publish pointscloud");
-                        publishPointCloud(f.as<rs2::points>(), t, frameset);
-                    }
+                            ROS_DEBUG("Publish pointscloud");
+                            publishPointCloud(f.as<rs2::points>(), t, frameset);
+                        }
                     }
                     continue;
                 }
