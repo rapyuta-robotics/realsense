@@ -194,6 +194,7 @@ namespace realsense2_camera
         cv::Mat& fix_depth_scale(const cv::Mat& from_image, cv::Mat& to_image);
         void clip_depth(rs2::depth_frame depth_frame, float clipping_dist);
         bool remove_bright_regions(rs2::depth_frame depth_frame, const rs2::video_frame& ir);
+        void remove_boundary(rs2::depth_frame depth_frame);
         void updateStreamCalibData(const rs2::video_stream_profile& video_profile);
         void publishStaticTransforms();
         void publishPointCloud(rs2::points f, const ros::Time& t, const rs2::frameset& frameset);
@@ -239,6 +240,9 @@ namespace realsense2_camera
         int _r_erosion;
         int _r_dilation;
         int _bright_thresh;
+
+        int _r_ignore_v;
+        int _r_ignore_h;
 
         double _linear_accel_cov;
         double _angular_velocity_cov;
