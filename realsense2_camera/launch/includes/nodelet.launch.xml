@@ -87,6 +87,9 @@
   <arg name="r_dilation"                     default="15"/>
   <arg name="bright_thresh"                  default="220"/>
 
+  <arg name="r_ignore_v"                     default="0"/>
+  <arg name="r_ignore_h"                     default="0"/>
+
 
   <node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen"/>
   <node pkg="nodelet" type="nodelet" name="realsense2_camera" args="load realsense2_camera/RealSenseNodeFactory $(arg manager)">
@@ -174,6 +177,9 @@
     <param name="r_erosion"                     type="int"   value="$(arg r_erosion)"/>
     <param name="r_dilation"                    type="int"   value="$(arg r_dilation)"/>
     <param name="bright_thresh"                 type="int"   value="$(arg bright_thresh)"/>
+
+    <param name="r_ignore_v"                    type="int"   value="$(arg r_ignore_v)"/>
+    <param name="r_ignore_h"                    type="int"   value="$(arg r_ignore_h)"/>
 
   </node>
 </launch>
