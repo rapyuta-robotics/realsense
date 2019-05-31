@@ -566,9 +566,6 @@ void BaseRealSenseNode::getParameters()
     _pnh.param("r_erosion", _r_erosion, static_cast<int>(2));
     _pnh.param("r_dilation", _r_dilation, static_cast<int>(15));
     _pnh.param("bright_thresh", _bright_thresh, static_cast<int>(220));
-
-    _pnh.param("r_ignore_v", _r_ignore_v, static_cast<int>(0));
-    _pnh.param("r_ignore_h", _r_ignore_h, static_cast<int>(0));
 }
 
 void BaseRealSenseNode::setupDevice()
@@ -1102,6 +1099,8 @@ void BaseRealSenseNode::clip_depth(rs2::depth_frame depth_frame, float clipping_
 
 bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, const rs2::video_frame& ir)
 {
+    const uint16_t INVALID_DEPTH = 0;
+
     int width = depth_frame.get_width();
     int height = depth_frame.get_height();
 
@@ -1131,38 +1130,6 @@ bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, cons
     }
 
     return true;
-}
-
-void BaseRealSenseNode::remove_boundary(rs2::depth_frame depth_frame)
-{
-    int width = depth_frame.get_width();
-    int height = depth_frame.get_height();
-
-    if (2 * _r_ignore_v > height || 2 * _r_ignore_h > width)
-    {
-        ROS_WARN("Disabled boundary depth removal (Invalid parameters)");
-        return;
-    }
-
-    uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
-    if (_r_ignore_v > 0)
-    {
-        for (int x = 0; x < width; ++x) p_depth[x] = INVALID_DEPTH; // y = 0;
-
-        for (int y = 1; y < _r_ignore_v; ++y)               memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
-        for (int y = height - _r_ignore_v; y < height; ++y) memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
-    }
-
-    if (_r_ignore_h > 0)
-    {
-        int y_min = std::max(0, _r_ignore_v);
-        int y_max = std::min(height - 1, height - _r_ignore_v - 1);
-        for (int y = y_min; y <= y_max; ++y)
-        {
-            for (int x = 0; x < _r_ignore_h; ++x) p_depth[y * width + x] = INVALID_DEPTH;
-            for (int x = width - _r_ignore_h; x < width; ++x) p_depth[y * width + x] = INVALID_DEPTH;
-        }
-    }
 }
 
 BaseRealSenseNode::CIMUHistory::CIMUHistory(size_t size)
@@ -1563,11 +1530,6 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                         ROS_WARN("Skip bright region depth removal (No infra1 frame received)");
                     }
                 }
-
-                if (_r_ignore_v > 0 || _r_ignore_h > 0)
-                {
-                    remove_boundary(depth_frame);
-                }
             }
 
             ROS_DEBUG("num_filters: %d", static_cast<int>(_filters.size()));
@@ -1683,11 +1645,6 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 if (_clipping_distance > 0)
                 {
                     clip_depth(frame, _clipping_distance);
-                }
-
-                if (_r_ignore_v > 0 || _r_ignore_h > 0)
-                {
-                    remove_boundary(frame);
                 }
             }
             publishFrame(frame, t,

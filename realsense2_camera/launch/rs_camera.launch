@@ -51,10 +51,7 @@
   <arg name="r_erosion"                      default="2"/>
   <arg name="r_dilation"                     default="15"/>
   <arg name="bright_thresh"                  default="220"/>
-
-  <arg name="r_ignore_v"                     default="0"/>
-  <arg name="r_ignore_h"                     default="0"/>
-
+  
   <group ns="$(arg camera)">
     <include file="$(find realsense2_camera)/launch/includes/nodelet.launch.xml">
       <arg name="tf_prefix"                value="$(arg tf_prefix)"/>
@@ -107,10 +104,6 @@
       <arg name="r_erosion"                     value="$(arg r_erosion)"/>
       <arg name="r_dilation"                    value="$(arg r_dilation)"/>
       <arg name="bright_thresh"                 value="$(arg bright_thresh)"/>
-
-      <arg name="r_ignore_v"                    value="$(arg r_ignore_v)"/>
-      <arg name="r_ignore_h"                    value="$(arg r_ignore_h)"/>
-
     </include>
   </group>
 </launch>
