@@ -17,9 +17,11 @@ using namespace ddynamic_reconfigure;
 
 namespace
 {
-    void box_filter(const uint8_t* src, int* dst, int *buf, int width, int height, int r)
+    void box_filter(const uint8_t* src, int* dst, int width, int height, int r)
     {
-        int* sum_x = buf;
+        std::vector<int> buf(width * height);
+
+        int* sum_x = buf.data();
         int* sum_xy = dst;
 
         memset(sum_x, 0, width * height * sizeof(sum_x[0]));
@@ -74,21 +76,19 @@ namespace
 
     void mark_bright_regions(const uint8_t* guide, uint8_t* bright, int width, int height, int r_ero, int r_dil, int thresh)
     {
-        std::unique_ptr<int []> buf(new int[width * height]);
-        std::unique_ptr<int []> sum(new int[width * height]);
-        int* p_buf = buf.get();
-        int* p_sum = sum.get();
+        std::vector<int> sum(width * height);
+        int* p_sum = sum.data();
 
         // set 1 if brighter than 'thresh'
         for(int i = 0; i < width * height; ++i) bright[i] = (guide[i] > thresh ? 1 : 0);
 
         // if all the pixels around are brighter than 'thresh'
-        box_filter(bright, p_sum, p_buf, width, height, r_ero); // erosion
+        box_filter(bright, p_sum, width, height, r_ero); // erosion
         int max_sum = (2 * r_ero + 1) * (2 * r_ero + 1);
         for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] == max_sum ? 1 : 0);
 
         // if any of the pixels around are bright
-        box_filter(bright, p_sum, p_buf, width, height, r_dil); // dilation
+        box_filter(bright, p_sum, width, height, r_dil); // dilation
         for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] > 0 ? 1 : 0);
     }
 }
@@ -1119,8 +1119,8 @@ bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, cons
 
     const uint8_t* p_ir = reinterpret_cast<uint8_t*>(const_cast<void*>(ir.get_data()));
 
-    std::unique_ptr<uint8_t []> invalid_map(new uint8_t[width * height]);
-    uint8_t* p_invalid = invalid_map.get();
+    std::vector<uint8_t> invalid_map(width * height);
+    uint8_t* p_invalid = invalid_map.data();
     mark_bright_regions(p_ir, p_invalid, width, height, _r_erosion, _r_dilation, _bright_thresh);
 
     uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
