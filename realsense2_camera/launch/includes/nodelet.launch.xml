@@ -90,6 +90,7 @@
   <arg name="r_ignore_v"                     default="0"/>
   <arg name="r_ignore_h"                     default="0"/>
 
+  <arg name="max_angle_surface_to_ray"       default="-1.0"/>
 
   <node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen"/>
   <node pkg="nodelet" type="nodelet" name="realsense2_camera" args="load realsense2_camera/RealSenseNodeFactory $(arg manager)">
@@ -173,13 +174,14 @@
     <param name="unite_imu_method"         type="str"    value="$(arg unite_imu_method)"/>
     <param name="allow_no_texture_points"  type="bool"   value="$(arg allow_no_texture_points)"/>
 
-    <param name="enable_bright_region_removal"  type="bool"  value="$(arg enable_bright_region_removal)"/>
-    <param name="r_blurring"                    type="int"   value="$(arg r_blurring)"/>
-    <param name="r_dilation"                    type="int"   value="$(arg r_dilation)"/>
-    <param name="bright_thresh"                 type="int"   value="$(arg bright_thresh)"/>
+    <param name="enable_bright_region_removal"  type="bool"   value="$(arg enable_bright_region_removal)"/>
+    <param name="r_blurring"                    type="int"    value="$(arg r_blurring)"/>
+    <param name="r_dilation"                    type="int"    value="$(arg r_dilation)"/>
+    <param name="bright_thresh"                 type="int"    value="$(arg bright_thresh)"/>
+ 
+    <param name="r_ignore_v"                    type="int"    value="$(arg r_ignore_v)"/>
+    <param name="r_ignore_h"                    type="int"    value="$(arg r_ignore_h)"/>
 
-    <param name="r_ignore_v"                    type="int"   value="$(arg r_ignore_v)"/>
-    <param name="r_ignore_h"                    type="int"   value="$(arg r_ignore_h)"/>
-
+    <param name="max_angle_surface_to_ray"      type="double" value="$(arg max_angle_surface_to_ray)"/>
   </node>
 </launch>

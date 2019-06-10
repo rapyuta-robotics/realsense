@@ -17,6 +17,36 @@ using namespace ddynamic_reconfigure;
 
 namespace
 {
+    double calc_cos_sq(rs2::vertex& p0, rs2::vertex& p1, rs2::vertex& p2)
+    {
+        // Calculate cos^2(theta)
+        // here, theta is the angle between the optical ray to the triangle center and the triangle surface normal
+        rs2::vertex p_cent = {(p0.x + p1.x + p2.x) * float(0.33333333),
+                              (p0.y + p1.y + p2.y) * float(0.33333333),
+                              (p0.z + p1.z + p2.z) * float(0.33333333)};
+
+        // v1 = p1 - p0
+        // v2 = p2 - p0
+        // v_cross = v1 x v2
+        // cos(theta) = (v_cross.T.dot(p_cent)) / |v_cross||p_cent|
+        rs2::vertex v1 = {p1.x - p0.x, p1.y - p0.y, p1.z - p0.z};
+        rs2::vertex v2 = {p2.x - p0.x, p2.y - p0.y, p2.z - p0.z};
+
+        rs2::vertex v_cros = {v1.y * v2.z - v1.z * v2.y,
+                              v1.z * v2.x - v1.x * v2.z,
+                              v1.x * v2.y - v1.y * v2.x};// v1 x v2
+        
+        double pc_norm_sq = (p_cent.x * p_cent.x + p_cent.y * p_cent.y + p_cent.z * p_cent.z);
+        double vc_norm_sq = (v_cros.x * v_cros.x + v_cros.y * v_cros.y + v_cros.z * v_cros.z);
+
+        double pc_dot_vc = fabs(p_cent.x * v_cros.x + p_cent.y * v_cros.y + p_cent.z * v_cros.z);
+        double denominator = pc_norm_sq * vc_norm_sq;
+
+        double cos_theta_sq =  (pc_dot_vc * pc_dot_vc) / denominator;
+
+        return cos_theta_sq;
+    }
+
     void box_filter(const uint8_t* src, int* dst, int width, int height, int r)
     {
         std::vector<int> buf(width * height);
@@ -583,6 +613,8 @@ void BaseRealSenseNode::getParameters()
 
     _pnh.param("r_ignore_v", _r_ignore_v, static_cast<int>(0));
     _pnh.param("r_ignore_h", _r_ignore_h, static_cast<int>(0));
+
+    _pnh.param("max_angle_surface_to_ray", _max_angle_surface_to_ray, static_cast<double>(18.0));
 }
 
 void BaseRealSenseNode::setupDevice()
@@ -1602,6 +1634,33 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 frameset = filter_it->_filter->process(frameset);
             }
 
+            // Filter surface parallel to optical ray direction from pointcloud
+            if (_max_angle_surface_to_ray > 0.0)
+            {
+                for (auto it = frameset.begin(); it != frameset.end(); ++it)
+                {
+                    auto f = (*it);
+                    if (!f.is<rs2::points>())
+                    {
+                        continue;
+                    }
+
+                    // pointcloud size is scaled after decimation_filter is processed
+                    // NOTE: decimation filter is processed only once in BaseRealSenseNode
+                    // @TODO: do we need to set decimation magnitude to make sure it is 2?
+                    int decimation_scale = 1;
+                    for (std::vector<NamedFilter>::const_iterator filter_it = _filters.begin(); filter_it != _filters.end(); filter_it++)
+                    {
+                        if (filter_it->_filter->is<rs2::decimation_filter>())
+                        {
+                            decimation_scale = 2;
+                        }
+                    }
+
+                    filter_edge_streak(f.as<rs2::points>(), decimation_scale);
+                }
+            }
+
             ROS_DEBUG("List of frameset after applying filters: size: %d", static_cast<int>(frameset.size()));
             for (auto it = frameset.begin(); it != frameset.end(); ++it)
             {
@@ -2032,6 +2091,86 @@ void reverse_memcpy(unsigned char* dst, const unsigned char* src, size_t n)
     for (i=0; i < n; ++i)
         dst[n-1-i] = src[i];
 
+}
+
+void BaseRealSenseNode::filter_edge_streak(rs2::points pc, int decimation_scale)
+{
+    const float MIN_DEPTH = 0.001;
+
+    // calculate pointcloud array width and height
+    const int ALIGN_SIZE = 4;// image size rounded up to multiples of 4
+    int width = _width[DEPTH] / decimation_scale;
+    int height = _height[DEPTH] / decimation_scale;
+    width = ALIGN_SIZE * ((width + ALIGN_SIZE - 1) / ALIGN_SIZE);
+    height = ALIGN_SIZE * ((height + ALIGN_SIZE - 1) / ALIGN_SIZE);
+
+    if (int(pc.size()) !=  width * height)
+    {
+        ROS_WARN("Disabled edge streak filter (Sizes of infra1 and pointcloud are different)");
+        return;
+    }
+
+    const double min_angle = 90.0 - _max_angle_surface_to_ray;
+    const double min_cos = cos(min_angle * M_PI / 180.0);
+    const double min_cos_sq = min_cos * min_cos;
+
+    std::vector<uint8_t> is_valid(pc.size(), 0);
+
+    const rs2::vertex* vertex = pc.get_vertices();
+    for (int y = 1; y < height - 1; ++y)
+    {
+        for (int x = 1; x < width - 1; ++x)
+        {
+            // Calculate angle (cosine) between the optical ray to the triangle center and the surface normal of each triangle shown below,
+            // then invalidate the pixels which have the above calculated angle(s) larger than `min_angle`.
+            //    o
+            //   /|
+            //  o-x-o 
+            //    |/
+            //    o
+            rs2::vertex p0 = vertex[y * width + x];
+            if (p0.z < MIN_DEPTH)
+            {
+                continue;
+            }
+
+            rs2::vertex p11 = vertex[y * width + (x + 1)];
+            rs2::vertex p12 = vertex[(y + 1) * width + x];
+            if (p11.z < MIN_DEPTH || p12.z < MIN_DEPTH)
+            {
+                continue;
+            }
+
+            rs2::vertex p21 = vertex[y * width + (x - 1)];
+            rs2::vertex p22 = vertex[(y - 1) * width + x];
+            if (p21.z < MIN_DEPTH || p22.z < MIN_DEPTH)
+            {
+                continue;
+            }
+
+            // calculate squared cosine instead of cosine in order to avoid sqrt computation for vector normalization
+            double cos_theta_sq1 = calc_cos_sq(p0, p11, p12);
+            double cos_theta_sq2 = calc_cos_sq(p0, p21, p22);
+
+            if ((cos_theta_sq1 > min_cos_sq) && (cos_theta_sq2 > min_cos_sq))
+            {
+                is_valid[y * width + x] = 1;
+            }
+        }
+    }
+
+    rs2_error* e = nullptr;
+    rs2::vertex* pts = (rs2::vertex *)(rs2_get_frame_vertices(pc.get(), &e));
+    rs2::error::handle(e);
+
+    const rs2::vertex INVALID_XYZ = {.0f, .0f, .0f};
+    for(int i = 0; i < int(pc.size()); ++i)
+    {
+        if(is_valid[i] != 1)
+        {
+            pts[i] = INVALID_XYZ;
+        }
+    }
 }
 
 void BaseRealSenseNode::publishPointCloud(rs2::points pc, const ros::Time& t, const rs2::frameset& frameset)
