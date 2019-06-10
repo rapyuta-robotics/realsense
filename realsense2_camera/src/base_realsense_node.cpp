@@ -27,25 +27,36 @@ namespace
         memset(sum_x, 0, width * height * sizeof(sum_x[0]));
         memset(sum_xy, 0, width * height * sizeof(sum_xy[0]));
 
+        // Summing horizontally
         for (int y = 0; y < height; ++y)
         {
             const uint8_t *p_src = src + (y * width);
             int *p_sum = sum_x + (y * width);
 
             p_sum[0] = r * p_src[0];
-            for (int xx = 0; xx <= r; ++xx) p_sum[0] += int(p_src[xx]);
+            for (int xx = 0; xx <= r; ++xx) {
+                p_sum[0] += int(p_src[xx]);
+            }
 
-            for (int x = 1;         x < r + 1;     ++x) p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[0]);
-            for (int x = r + 1;     x < width - r; ++x) p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[x - r - 1]);
-            for (int x = width - r; x < width;     ++x) p_sum[x] = p_sum[x - 1] + int(p_src[width - 1]) - int(p_src[x - r - 1]);
+            for (int x = 1;         x < r + 1;     ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[0]);
+            }
+            for (int x = r + 1;     x < width - r; ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[x - r - 1]);
+            }
+            for (int x = width - r; x < width;     ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[width - 1]) - int(p_src[x - r - 1]);
+            }
         }
-        { // y = 0
-            for (int x = 0; x < width; ++x) {
-                int *p_src = sum_x + x;
-                int *p_sum = sum_xy + x;
 
-                p_sum[0] = r * p_src[0];
-                for (int yy = 0; yy <= r; ++yy) p_sum[0] += int(p_src[yy * width]);
+        // Summing vertically
+        for (int x = 0; x < width; ++x) { // y = 0
+            int *p_src = sum_x + x;
+            int *p_sum = sum_xy + x;
+
+            p_sum[0] = r * p_src[0];
+            for (int yy = 0; yy <= r; ++yy) {
+                p_sum[0] += int(p_src[yy * width]);
             }
         }
         for (int y = 1; y < r + 1; ++y)
@@ -80,16 +91,22 @@ namespace
         int* p_sum = sum.data();
 
         // set 1 if brighter than 'thresh'
-        for(int i = 0; i < width * height; ++i) bright[i] = (guide[i] > thresh ? 1 : 0);
+        for(int i = 0; i < width * height; ++i) {
+            bright[i] = (guide[i] > thresh ? 1 : 0);
+        }
 
         // if all the pixels around are brighter than 'thresh'
         box_filter(bright, p_sum, width, height, r_ero); // erosion
         int max_sum = (2 * r_ero + 1) * (2 * r_ero + 1);
-        for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] == max_sum ? 1 : 0);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] == max_sum ? 1 : 0);
+        }
 
         // if any of the pixels around are bright
         box_filter(bright, p_sum, width, height, r_dil); // dilation
-        for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] > 0 ? 1 : 0);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > 0 ? 1 : 0);
+        }
     }
 }
 
@@ -1126,7 +1143,9 @@ bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, cons
     uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
     for (int i = 0; i < width * height; ++i)
     {
-        if (p_invalid[i]) p_depth[i] = INVALID_DEPTH;
+        if (p_invalid[i]) {
+            p_depth[i] = INVALID_DEPTH;
+        }
     }
 
     return true;
