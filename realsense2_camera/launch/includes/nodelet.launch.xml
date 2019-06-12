@@ -83,7 +83,7 @@
   <arg name="allow_no_texture_points"  default="false"/>
 
   <arg name="enable_bright_region_removal"   default="false"/>
-  <arg name="r_erosion"                      default="2"/>
+  <arg name="r_blurring"                     default="2"/>
   <arg name="r_dilation"                     default="15"/>
   <arg name="bright_thresh"                  default="220"/>
 
@@ -171,7 +171,7 @@
     <param name="allow_no_texture_points"  type="bool"   value="$(arg allow_no_texture_points)"/>
 
     <param name="enable_bright_region_removal"  type="bool"  value="$(arg enable_bright_region_removal)"/>
-    <param name="r_erosion"                     type="int"   value="$(arg r_erosion)"/>
+    <param name="r_blurring"                    type="int"   value="$(arg r_blurring)"/>
     <param name="r_dilation"                    type="int"   value="$(arg r_dilation)"/>
     <param name="bright_thresh"                 type="int"   value="$(arg bright_thresh)"/>
 
