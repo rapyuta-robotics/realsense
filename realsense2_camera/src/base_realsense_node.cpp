@@ -17,33 +17,46 @@ using namespace ddynamic_reconfigure;
 
 namespace
 {
-    void box_filter(const uint8_t* src, int* dst, int *buf, int width, int height, int r)
+    void box_filter(const uint8_t* src, int* dst, int width, int height, int r)
     {
-        int* sum_x = buf;
+        std::vector<int> buf(width * height);
+
+        int* sum_x = buf.data();
         int* sum_xy = dst;
 
         memset(sum_x, 0, width * height * sizeof(sum_x[0]));
         memset(sum_xy, 0, width * height * sizeof(sum_xy[0]));
 
+        // Summing horizontally
         for (int y = 0; y < height; ++y)
         {
             const uint8_t *p_src = src + (y * width);
             int *p_sum = sum_x + (y * width);
 
             p_sum[0] = r * p_src[0];
-            for (int xx = 0; xx <= r; ++xx) p_sum[0] += int(p_src[xx]);
+            for (int xx = 0; xx <= r; ++xx) {
+                p_sum[0] += int(p_src[xx]);
+            }
 
-            for (int x = 1;         x < r + 1;     ++x) p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[0]);
-            for (int x = r + 1;     x < width - r; ++x) p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[x - r - 1]);
-            for (int x = width - r; x < width;     ++x) p_sum[x] = p_sum[x - 1] + int(p_src[width - 1]) - int(p_src[x - r - 1]);
+            for (int x = 1;         x < r + 1;     ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[0]);
+            }
+            for (int x = r + 1;     x < width - r; ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[x - r - 1]);
+            }
+            for (int x = width - r; x < width;     ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[width - 1]) - int(p_src[x - r - 1]);
+            }
         }
-        { // y = 0
-            for (int x = 0; x < width; ++x) {
-                int *p_src = sum_x + x;
-                int *p_sum = sum_xy + x;
 
-                p_sum[0] = r * p_src[0];
-                for (int yy = 0; yy <= r; ++yy) p_sum[0] += int(p_src[yy * width]);
+        // Summing vertically
+        for (int x = 0; x < width; ++x) { // y = 0
+            int *p_src = sum_x + x;
+            int *p_sum = sum_xy + x;
+
+            p_sum[0] = r * p_src[0];
+            for (int yy = 0; yy <= r; ++yy) {
+                p_sum[0] += int(p_src[yy * width]);
             }
         }
         for (int y = 1; y < r + 1; ++y)
@@ -72,24 +85,25 @@ namespace
         }
     }
 
-    void mark_bright_regions(const uint8_t* guide, uint8_t* bright, int width, int height, int r_ero, int r_dil, int thresh)
+    void mark_bright_regions(const uint8_t* guide, uint8_t* bright, int width, int height, int r_blr, int r_dil, int thresh)
     {
-        std::unique_ptr<int []> buf(new int[width * height]);
-        std::unique_ptr<int []> sum(new int[width * height]);
-        int* p_buf = buf.get();
-        int* p_sum = sum.get();
+        std::vector<int> sum(width * height);
+        int* p_sum = sum.data();
 
-        // set 1 if brighter than 'thresh'
-        for(int i = 0; i < width * height; ++i) bright[i] = (guide[i] > thresh ? 1 : 0);
+        // Blurring (summing without normalization)
+        box_filter(guide, p_sum, width, height, r_blr);
 
-        // if all the pixels around are brighter than 'thresh'
-        box_filter(bright, p_sum, p_buf, width, height, r_ero); // erosion
-        int max_sum = (2 * r_ero + 1) * (2 * r_ero + 1);
-        for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] == max_sum ? 1 : 0);
+        // if blurred pixels are brighter than 'thresh'
+        int thresh_sum = thresh * (2 * r_blr + 1) * (2 * r_blr + 1);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > thresh_sum ? 1 : 0);
+        }
 
         // if any of the pixels around are bright
-        box_filter(bright, p_sum, p_buf, width, height, r_dil); // dilation
-        for (int i = 0; i < width * height; ++i) bright[i] = (p_sum[i] > 0 ? 1 : 0);
+        box_filter(bright, p_sum, width, height, r_dil);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > 0 ? 1 : 0);
+        }
     }
 }
 
@@ -563,7 +577,7 @@ void BaseRealSenseNode::getParameters()
     _pnh.param("publish_odom_tf", _publish_odom_tf, PUBLISH_ODOM_TF);
 
     _pnh.param("enable_bright_region_removal", _enable_bright_region_removal, ENABLE_BRIGHT_REGION_REMOVAL);
-    _pnh.param("r_erosion", _r_erosion, static_cast<int>(2));
+    _pnh.param("r_blurring", _r_blurring, static_cast<int>(2));
     _pnh.param("r_dilation", _r_dilation, static_cast<int>(15));
     _pnh.param("bright_thresh", _bright_thresh, static_cast<int>(220));
 
@@ -1111,8 +1125,8 @@ bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, cons
         return false;
     }
 
-    if (std::min(_r_erosion, _r_dilation) < 0 ||
-            std::max(_r_erosion, _r_dilation) > ((std::min(width, height) - 1) / 2))
+    if (std::min(_r_blurring, _r_dilation) < 0 ||
+            std::max(_r_blurring, _r_dilation) > ((std::min(width, height) - 1) / 2))
     {
         ROS_WARN("Disabled bright region depth removal (Invalid region parameters)");
         return false;
@@ -1120,14 +1134,16 @@ bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, cons
 
     const uint8_t* p_ir = reinterpret_cast<uint8_t*>(const_cast<void*>(ir.get_data()));
 
-    std::unique_ptr<uint8_t []> invalid_map(new uint8_t[width * height]);
-    uint8_t* p_invalid = invalid_map.get();
-    mark_bright_regions(p_ir, p_invalid, width, height, _r_erosion, _r_dilation, _bright_thresh);
+    std::vector<uint8_t> invalid_map(width * height);
+    uint8_t* p_invalid = invalid_map.data();
+    mark_bright_regions(p_ir, p_invalid, width, height, _r_blurring, _r_dilation, _bright_thresh);
 
     uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
     for (int i = 0; i < width * height; ++i)
     {
-        if (p_invalid[i]) p_depth[i] = INVALID_DEPTH;
+        if (p_invalid[i]) {
+            p_depth[i] = INVALID_DEPTH;
+        }
     }
 
     return true;
