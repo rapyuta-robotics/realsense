@@ -1163,10 +1163,15 @@ void BaseRealSenseNode::remove_boundary(rs2::depth_frame depth_frame)
     uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
     if (_r_ignore_v > 0)
     {
-        for (int x = 0; x < width; ++x) p_depth[x] = INVALID_DEPTH; // y = 0;
-
-        for (int y = 1; y < _r_ignore_v; ++y)               memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
-        for (int y = height - _r_ignore_v; y < height; ++y) memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
+        for (int x = 0; x < width; ++x) { // y = 0
+            p_depth[x] = INVALID_DEPTH;
+        }
+        for (int y = 1; y < _r_ignore_v; ++y) {
+            memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
+        }
+        for (int y = height - _r_ignore_v; y < height; ++y) {
+            memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
+        }
     }
 
     if (_r_ignore_h > 0)
@@ -1175,8 +1180,12 @@ void BaseRealSenseNode::remove_boundary(rs2::depth_frame depth_frame)
         int y_max = std::min(height - 1, height - _r_ignore_v - 1);
         for (int y = y_min; y <= y_max; ++y)
         {
-            for (int x = 0; x < _r_ignore_h; ++x) p_depth[y * width + x] = INVALID_DEPTH;
-            for (int x = width - _r_ignore_h; x < width; ++x) p_depth[y * width + x] = INVALID_DEPTH;
+            for (int x = 0; x < _r_ignore_h; ++x) {
+                p_depth[y * width + x] = INVALID_DEPTH;
+            }
+            for (int x = width - _r_ignore_h; x < width; ++x) {
+                p_depth[y * width + x] = INVALID_DEPTH;
+            }
         }
     }
 }
