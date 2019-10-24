@@ -98,6 +98,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 				}
 			}
 
+			// correctly decode and fill rs2_vector for expected median accelerometer orientation vector
 			rs2_vector accel_orientation_vec = {};
 			if (!_accel_orientation.empty())
 			{
@@ -235,6 +236,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 					break;
 				}
 			}
+
 			if (!found)
 			{
 				// T265 could be caught by another node.
