@@ -69,7 +69,9 @@ namespace realsense2_camera
         rs2::device _device;
         std::unique_ptr<InterfaceRealSenseNode> _realSenseNode;
         rs2::context _ctx;
+        std::string _camera_name;
         std::string _serial_no;
+        std::string _accel_orientation;
         bool _initial_reset;
         std::thread _query_thread;
 

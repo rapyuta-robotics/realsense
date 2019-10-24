@@ -17,6 +17,18 @@ using namespace realsense2_camera;
 #define REALSENSE_ROS_EMBEDDED_VERSION_STR (VAR_ARG_STRING(VERSION: REALSENSE_ROS_MAJOR_VERSION.REALSENSE_ROS_MINOR_VERSION.REALSENSE_ROS_PATCH_VERSION))
 constexpr auto realsense_ros_camera_version = REALSENSE_ROS_EMBEDDED_VERSION_STR;
 
+bool match_accel_vectors(rs2_vector a, rs2_vector b, float error = 1.0f)
+{
+    if (abs(a.x - b.x) <= error &&
+        abs(a.y - b.y) <= error &&
+        abs(a.z - b.z) <= error)
+    {
+        return true;
+    }
+
+	return false;
+}
+
 PLUGINLIB_EXPORT_CLASS(realsense2_camera::RealSenseNodeFactory, nodelet::Nodelet)
 
 RealSenseNodeFactory::RealSenseNodeFactory()
@@ -57,12 +69,82 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 		else
 		{
 			bool found = false;
+			// correctly decode and fill rs2_vector for expected median accelerometer orientation vector
+			rs2_vector accel_orientation_vec;
+			sscanf (_accel_orientation.c_str(), "%f%f%f", &accel_orientation_vec.x, &accel_orientation_vec.y, &accel_orientation_vec.z);
+			ROS_DEBUG_STREAM("Looking for " << _camera_name << " device with orientation " << accel_orientation_vec);
+
 			for (auto&& dev : list)
 			{
 				auto sn = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
 				ROS_DEBUG_STREAM("Device with serial number " << sn << " was found.");
-				if (_serial_no.empty() || sn == _serial_no)
+
+				if (!_serial_no.empty() && sn == _serial_no)
 				{
+					_device = dev;
+					_serial_no = sn;
+					found = true;
+					break;
+				} else if (_serial_no.empty() && !_accel_orientation.empty()) // auto determine correct realsense orientation
+				{
+					rs2::pipeline pipe;
+					rs2::config cfg;
+					cfg.enable_device(sn);
+					cfg.enable_stream(RS2_STREAM_ACCEL);
+
+					// attempt to read accel data for upto max attempts
+					const int MAX_ATTEMPTS = 5;
+					bool success = false;
+					int cAttempts = 0;
+					while (cAttempts < MAX_ATTEMPTS)
+					{
+						try
+						{
+							pipe.start(cfg);
+							success = true;
+							break;
+						} catch (...)
+						{
+							cAttempts ++;
+							ROS_DEBUG_STREAM("Pipe failed to create on Device serial no " << sn << "device busy. Waiting..." << cAttempts);
+							ros::Duration(2).sleep();
+							continue;
+						}
+					}
+
+					if (!success)
+					{
+						continue;
+					}
+
+					cAttempts = 0;
+					while (cAttempts < MAX_ATTEMPTS)
+					{
+						rs2::frameset frameset = pipe.wait_for_frames();
+						cAttempts ++;
+
+						// Find and retrieve IMU and/or tracking data
+						if (rs2::motion_frame accel_frame = frameset.first_or_default(RS2_STREAM_ACCEL))
+						{
+							rs2_vector accel_sample = accel_frame.get_motion_data();
+							ROS_DEBUG_STREAM("Received orientation " << accel_sample << " from device serial no " << sn);
+							if (match_accel_vectors(accel_sample, accel_orientation_vec, 2.0f))
+							{
+								_device = dev;
+								_serial_no = sn;
+								found = true;
+								ROS_WARN_STREAM("Device serial no " << sn << " with orientation " << accel_sample << " assigned to " << _camera_name);
+								break;
+							}
+						}
+					}
+
+					pipe.stop();
+					if (found) // found one matching device in correct orientation, no need to look for more
+					{
+						break;
+					}
+				} else {
 					_device = dev;
 					_serial_no = sn;
 					found = true;
@@ -71,8 +153,19 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 			}
 			if (!found)
 			{
-				// T265 could be caught by another node.
-				ROS_ERROR_STREAM("The requested device with serial number " << _serial_no << " is NOT found. Will Try again.");
+				if (!_serial_no.empty())
+				{
+					// T265 could be caught by another node.
+					ROS_ERROR_STREAM("The requested device with serial number " << _serial_no << " is NOT found. Will Try again.");
+				} else if (!_accel_orientation.empty())
+				{
+					// error: wrong orientation after 5 attempts
+					ROS_ERROR_STREAM("The requested device with orientation " << _accel_orientation << " is NOT found. Will Try again.");
+				} else
+				{
+					// could not assign any available device
+					ROS_ERROR_STREAM("No available devices found.");
+				}
 			}
 		}
 	}
@@ -134,7 +227,11 @@ void RealSenseNodeFactory::onInit()
 #endif
 		ros::NodeHandle nh = getNodeHandle();
 		auto privateNh = getPrivateNodeHandle();
+
+		/* change: sumandeepb: determine correct serial no for realsense_top and realsense_bottom */
+		privateNh.param("camera", _camera_name, std::string(""));
 		privateNh.param("serial_no", _serial_no, std::string(""));
+		privateNh.param("accel_orientation", _accel_orientation, std::string(""));
 
 		std::string rosbag_filename("");
 		privateNh.param("rosbag_filename", rosbag_filename, std::string(""));
