@@ -6,6 +6,7 @@ https://github.com/IntelRealSense/librealsense/blob/master/third-party/libtm/lib
 -->
 <launch>
   <arg name="serial_no"           default=""/>
+  <arg name="usb_port_id"         default=""/>
   <arg name="json_file_path"      default=""/>
   <arg name="camera"              default="camera"/>
   <arg name="tf_prefix"           default="$(arg camera)"/>
@@ -27,11 +28,14 @@ https://github.com/IntelRealSense/librealsense/blob/master/third-party/libtm/lib
   <arg name="linear_accel_cov"      default="0.01"/>
   <arg name="initial_reset"         default="false"/>
   <arg name="unite_imu_method"      default=""/>
+
+  <arg name="publish_odom_tf"     default="true"/>
   
   <group ns="$(arg camera)">
     <include file="$(find realsense2_camera)/launch/includes/nodelet.launch.xml">
       <arg name="tf_prefix"                value="$(arg tf_prefix)"/>
       <arg name="serial_no"                value="$(arg serial_no)"/>
+      <arg name="usb_port_id"              value="$(arg usb_port_id)"/>
       <arg name="json_file_path"           value="$(arg json_file_path)"/>
 
       <arg name="enable_sync"              value="$(arg enable_sync)"/>
@@ -50,6 +54,8 @@ https://github.com/IntelRealSense/librealsense/blob/master/third-party/libtm/lib
       <arg name="linear_accel_cov"         value="$(arg linear_accel_cov)"/>
       <arg name="initial_reset"            value="$(arg initial_reset)"/>
       <arg name="unite_imu_method"         value="$(arg unite_imu_method)"/>
+
+      <arg name="publish_odom_tf"          value="$(arg publish_odom_tf)"/>
     </include>
   </group>
 </launch>
