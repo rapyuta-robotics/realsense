@@ -17,7 +17,7 @@ using namespace realsense2_camera;
 #define REALSENSE_ROS_EMBEDDED_VERSION_STR (VAR_ARG_STRING(VERSION: REALSENSE_ROS_MAJOR_VERSION.REALSENSE_ROS_MINOR_VERSION.REALSENSE_ROS_PATCH_VERSION))
 constexpr auto realsense_ros_camera_version = REALSENSE_ROS_EMBEDDED_VERSION_STR;
 
-bool match_accel_vectors(rs2_vector a, rs2_vector b, float error = 1.0f)
+bool match_accel_vectors(const rs2_vector& a, const rs2_vector& b, float error = 1.0f)
 {
     if (abs(a.x - b.x) <= error &&
         abs(a.y - b.y) <= error &&
@@ -92,11 +92,11 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 					cfg.enable_device(sn);
 					cfg.enable_stream(RS2_STREAM_ACCEL);
 
-					// attempt to read accel data for upto max attempts
+					// attempt to create pipe stream for upto max attempts
 					const int MAX_ATTEMPTS = 5;
 					bool success = false;
-					int cAttempts = 0;
-					while (cAttempts < MAX_ATTEMPTS)
+					int no_attempts = 0;
+					while (no_attempts < MAX_ATTEMPTS)
 					{
 						try
 						{
@@ -105,8 +105,8 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 							break;
 						} catch (...)
 						{
-							cAttempts ++;
-							ROS_DEBUG_STREAM("Pipe failed to create on Device serial no " << sn << "device busy. Waiting..." << cAttempts);
+							no_attempts ++;
+							ROS_DEBUG_STREAM("Pipe failed to create on Device serial no " << sn << "device busy. Waiting..." << no_attempts);
 							ros::Duration(2).sleep();
 							continue;
 						}
@@ -114,16 +114,18 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 
 					if (!success)
 					{
+						// all max attempts exhausted for the current device
 						continue;
 					}
 
-					cAttempts = 0;
-					while (cAttempts < MAX_ATTEMPTS)
+					// attempt to read accel data frame for upto max attempts
+					no_attempts = 0;
+					while (no_attempts < MAX_ATTEMPTS)
 					{
 						rs2::frameset frameset = pipe.wait_for_frames();
-						cAttempts ++;
+						no_attempts ++;
 
-						// Find and retrieve IMU and/or tracking data
+						// fetch accelerometer orientation data from pipe stream
 						if (rs2::motion_frame accel_frame = frameset.first_or_default(RS2_STREAM_ACCEL))
 						{
 							rs2_vector accel_sample = accel_frame.get_motion_data();
@@ -133,7 +135,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 								_device = dev;
 								_serial_no = sn;
 								found = true;
-								ROS_WARN_STREAM("Device serial no " << sn << " with orientation " << accel_sample << " assigned to " << _camera_name);
+								ROS_INFO_STREAM("Device serial no " << sn << " with orientation " << accel_sample << " assigned to " << _camera_name);
 								break;
 							}
 						}
