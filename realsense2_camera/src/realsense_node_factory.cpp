@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <thread>
 #include <sys/time.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 using namespace realsense2_camera;
 
@@ -42,6 +43,8 @@ RealSenseNodeFactory::RealSenseNodeFactory()
 		ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug);
 
 	rs2::log_to_console(severity);
+
+	_tf_listener = new tf2_ros::TransformListener(_tf_buffer);
 }
 
 void RealSenseNodeFactory::closeDevice()
@@ -56,6 +59,8 @@ void RealSenseNodeFactory::closeDevice()
 RealSenseNodeFactory::~RealSenseNodeFactory()
 {
 	closeDevice();
+
+	delete _tf_listener;
 }
 
 void RealSenseNodeFactory::getDevice(rs2::device_list list)
@@ -69,6 +74,31 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 		else
 		{
 			bool found = false;
+
+			if (_accel_orientation.empty()) // generate accel orientation vector from camera quaternion
+			{
+				try {
+					geometry_msgs::TransformStamped transformStamped = 
+									_tf_buffer.lookupTransform("tf_" + _camera_name + "_link", "base_link", ros::Time(0));
+
+					tf2::Quaternion q_orig, q_rot;
+					q_orig.setValue(0.0, -9.81, 0.0);
+					tf2::convert(transformStamped.transform.rotation , q_rot);
+					// Calculate the new orientation
+					q_orig = q_rot.inverse() * q_orig * q_rot; 
+
+					std::stringstream ss;
+					ss << q_orig.x() << " " << q_orig.y() << " " << q_orig.z();
+					_accel_orientation = ss.str();
+
+					ROS_DEBUG_STREAM("Computing from tf2 quaternion for " << _camera_name << " rotation: " << transformStamped.transform.rotation
+									<< ", accel: " << ss.str() << " " << q_orig.w());
+				} catch (tf2::TransformException e) {
+					ROS_ERROR_STREAM(e.what());
+					return;
+				}
+			}
+
 			// correctly decode and fill rs2_vector for expected median accelerometer orientation vector
 			rs2_vector accel_orientation_vec;
 			sscanf (_accel_orientation.c_str(), "%f%f%f", &accel_orientation_vec.x, &accel_orientation_vec.y, &accel_orientation_vec.z);

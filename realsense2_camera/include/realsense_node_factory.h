@@ -17,6 +17,7 @@
 #include <realsense2_camera/Extrinsics.h>
 #include <tf/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 #include <realsense2_camera/IMUInfo.h>
 #include <csignal>
 #include <eigen3/Eigen/Geometry>
@@ -66,6 +67,8 @@ namespace realsense2_camera
         virtual void onInit() override;
         void tryGetLogSeverity(rs2_log_severity& severity) const;
 
+        tf2_ros::Buffer _tf_buffer;
+        tf2_ros::TransformListener* _tf_listener;
         rs2::device _device;
         std::unique_ptr<InterfaceRealSenseNode> _realSenseNode;
         rs2::context _ctx;
