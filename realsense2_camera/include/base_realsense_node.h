@@ -218,6 +218,7 @@ namespace realsense2_camera
         void clip_depth(rs2::depth_frame depth_frame, float clipping_dist);
         bool remove_bright_regions(rs2::depth_frame depth_frame, const rs2::video_frame& ir);
         void remove_boundary(rs2::depth_frame depth_frame);
+        bool filter_repeat_patterns(rs2::depth_frame depth_frame, const rs2::video_frame& ir);
         void updateStreamCalibData(const rs2::video_stream_profile& video_profile);
         void SetBaseStream();
         void publishStaticTransforms();
@@ -275,6 +276,10 @@ namespace realsense2_camera
 
         int _r_ignore_v;
         int _r_ignore_h;
+
+        bool _enable_repeat_pattern_filter;
+        int _max_disparity_shift;
+        float _peak_concavity_thresh;
 
         double _linear_accel_cov;
         double _angular_velocity_cov;
