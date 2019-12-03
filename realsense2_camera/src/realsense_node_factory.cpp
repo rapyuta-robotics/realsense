@@ -79,9 +79,10 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 			{
 				try {
 					geometry_msgs::TransformStamped transformStamped = 
-									_tf_buffer.lookupTransform("tf_" + _camera_name + "_link", "base_link", ros::Time(0));
+									_tf_buffer.lookupTransform(_tf_link_name, "base_link", ros::Time(0));
 
 					tf2::Quaternion q_orig, q_rot;
+					// universal gravity vector
 					q_orig.setValue(0.0, -9.81, 0.0);
 					tf2::convert(transformStamped.transform.rotation , q_rot);
 					// Calculate the new orientation
@@ -262,6 +263,7 @@ void RealSenseNodeFactory::onInit()
 
 		/* change: sumandeepb: determine correct serial no for realsense_top and realsense_bottom */
 		privateNh.param("camera", _camera_name, std::string(""));
+		privateNh.param("base_frame_id", _tf_link_name, std::string(""));
 		privateNh.param("serial_no", _serial_no, std::string(""));
 		privateNh.param("accel_orientation", _accel_orientation, std::string(""));
 
