@@ -20,14 +20,7 @@ constexpr auto realsense_ros_camera_version = REALSENSE_ROS_EMBEDDED_VERSION_STR
 
 bool match_accel_vectors(const rs2_vector& a, const rs2_vector& b, float error = 1.0f)
 {
-    if (abs(a.x - b.x) <= error &&
-        abs(a.y - b.y) <= error &&
-        abs(a.z - b.z) <= error)
-    {
-        return true;
-    }
-
-	return false;
+    return (abs(a.x - b.x) <= error && abs(a.y - b.y) <= error && abs(a.z - b.z) <= error);
 }
 
 PLUGINLIB_EXPORT_CLASS(realsense2_camera::RealSenseNodeFactory, nodelet::Nodelet)
@@ -81,19 +74,19 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 					geometry_msgs::TransformStamped transformStamped = 
 									_tf_buffer.lookupTransform(_tf_link_name, "base_link", ros::Time(0));
 
-					tf2::Quaternion q_orig, q_rot;
+					tf2::Quaternion q_gravity_base, q_camera_rot, q_gravity_camera;
 					// universal gravity vector
-					q_orig.setValue(0.0, -9.81, 0.0);
-					tf2::convert(transformStamped.transform.rotation , q_rot);
+					q_gravity_base.setValue(0.0, -9.81, 0.0);
+					tf2::convert(transformStamped.transform.rotation , q_camera_rot);
 					// Calculate the new orientation
-					q_orig = q_rot.inverse() * q_orig * q_rot; 
+					q_gravity_camera = q_camera_rot.inverse() * q_gravity_base * q_camera_rot;
 
 					std::stringstream ss;
-					ss << q_orig.x() << " " << q_orig.y() << " " << q_orig.z();
+					ss << q_gravity_camera.x() << " " << q_gravity_camera.y() << " " << q_gravity_camera.z();
 					_accel_orientation = ss.str();
 
 					ROS_DEBUG_STREAM("Computing from tf2 quaternion for " << _camera_name << " rotation: " << transformStamped.transform.rotation
-									<< ", accel: " << ss.str() << " " << q_orig.w());
+									<< ", accel: " << ss.str() << " " << q_gravity_camera.w());
 				} catch (tf2::TransformException e) {
 					ROS_ERROR_STREAM(e.what());
 					return;
@@ -137,7 +130,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 						} catch (...)
 						{
 							no_attempts ++;
-							ROS_DEBUG_STREAM("Pipe failed to create on Device serial no " << sn << "device busy. Waiting..." << no_attempts);
+							ROS_DEBUG_STREAM("Pipe failed to create on device serial no " << sn << ". Device busy. Waiting..." << no_attempts);
 							ros::Duration(2).sleep();
 							continue;
 						}
@@ -146,6 +139,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 					if (!success)
 					{
 						// all max attempts exhausted for the current device
+						ROS_INFO_STREAM("Pipe failed to create on device serial no " << sn << " after " << no_attempts << " attempts");
 						continue;
 					}
 
