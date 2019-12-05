@@ -73,11 +73,16 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 									_tf_buffer.lookupTransform(_tf_camera_link_name, _tf_reference_link_name, ros::Time(0));
 
 					tf2::Quaternion q_gravity_base, q_camera_rot, q_gravity_camera;
-					// universal gravity vector
-					q_gravity_base.setValue(0.0, -9.81, 0.0);
+					// universal gravity vector in refence frame of robot in quaternion form
+					q_gravity_base.setValue(0.0, 0.0, 9.81);
+					// fetch pure rotation quaternion Q of sensor relative to robot reference frame
 					tf2::convert(transformStamped.transform.rotation , q_camera_rot);
-					// Calculate the new orientation
-					q_gravity_camera = q_camera_rot.inverse() * q_gravity_base * q_camera_rot;
+					// Calculate the new orientation of gravity in sensor base reference frame
+					// apply quaternion rotation to gravity vector q' = Q * q * Q^-1
+					// https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
+					q_gravity_camera = q_camera_rot * q_gravity_base * q_camera_rot.inverse();
+					// transform to accel optical frame reference (uses different convention than robot reference base and camera base)
+					q_gravity_camera.setValue(-q_gravity_camera.y(), -q_gravity_camera.z(), q_gravity_camera.x());
 
 					std::stringstream ss;
 					ss << q_gravity_camera.x() << " " << q_gravity_camera.y() << " " << q_gravity_camera.z();
