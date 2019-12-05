@@ -101,13 +101,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 				auto sn = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
 				ROS_DEBUG_STREAM("Device with serial number " << sn << " was found.");
 
-				if (!_serial_no.empty() && sn == _serial_no)
-				{
-					_device = dev;
-					_serial_no = sn;
-					found = true;
-					break;
-				} else if (_serial_no.empty() && !_accel_orientation.empty()) // auto determine correct realsense orientation
+				if (_serial_no.empty() && !_accel_orientation.empty()) // auto determine correct realsense orientation
 				{
 					rs2::pipeline pipe;
 					rs2::config cfg;
@@ -169,7 +163,10 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 						}
 					}
 
-					pipe.stop();
+					if (success) {
+						pipe.stop(); // stop pipe only if pipe start succeeded earlier
+					}
+
 					if (found) // found one matching device in correct orientation, no need to look for more
 					{
 						break;
