@@ -37,7 +37,7 @@ RealSenseNodeFactory::RealSenseNodeFactory()
 
 	rs2::log_to_console(severity);
 
-	_tf_listener = new tf2_ros::TransformListener(_tf_buffer);
+	_tf_listener = std::make_unique<tf2_ros::TransformListener>(_tf_buffer);
 }
 
 void RealSenseNodeFactory::closeDevice()
@@ -52,8 +52,6 @@ void RealSenseNodeFactory::closeDevice()
 RealSenseNodeFactory::~RealSenseNodeFactory()
 {
 	closeDevice();
-
-	delete _tf_listener;
 }
 
 void RealSenseNodeFactory::getDevice(rs2::device_list list)
@@ -72,7 +70,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 			{
 				try {
 					geometry_msgs::TransformStamped transformStamped = 
-									_tf_buffer.lookupTransform(_tf_link_name, "base_link", ros::Time(0));
+									_tf_buffer.lookupTransform(_tf_camera_link_name, _tf_reference_link_name, ros::Time(0));
 
 					tf2::Quaternion q_gravity_base, q_camera_rot, q_gravity_camera;
 					// universal gravity vector
@@ -132,13 +130,17 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 							no_attempts ++;
 							ROS_DEBUG_STREAM("Pipe failed to create on device serial no " << sn << ". Device busy. Waiting..." << no_attempts);
 							ros::Duration(2).sleep();
-							continue;
 						}
 					}
 
 					if (!success)
 					{
 						// all max attempts exhausted for the current device
+						// this is not serious and is expected and will happen for atleast one realsense ros node.
+						// when the first node successfully inits one sensor the second node will fail for that sensor
+						// if this fails for both nodes that means atleast one sensor is unavailable
+						// and that will anyways throw error (!found) further down the code
+						// therefore this is INFO only
 						ROS_INFO_STREAM("Pipe failed to create on device serial no " << sn << " after " << no_attempts << " attempts");
 						continue;
 					}
@@ -151,7 +153,8 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 						no_attempts ++;
 
 						// fetch accelerometer orientation data from pipe stream
-						if (rs2::motion_frame accel_frame = frameset.first_or_default(RS2_STREAM_ACCEL))
+						rs2::motion_frame accel_frame = frameset.first_or_default(RS2_STREAM_ACCEL);
+						if (accel_frame)
 						{
 							rs2_vector accel_sample = accel_frame.get_motion_data();
 							ROS_DEBUG_STREAM("Received orientation " << accel_sample << " from device serial no " << sn);
@@ -257,8 +260,14 @@ void RealSenseNodeFactory::onInit()
 
 		/* change: sumandeepb: determine correct serial no for realsense_top and realsense_bottom */
 		privateNh.param("camera", _camera_name, std::string(""));
-		privateNh.param("base_frame_id", _tf_link_name, std::string(""));
+		privateNh.param("reference_frame_id", _tf_reference_link_name, std::string(""));
+		// base_frame_id selected as the accel_frame_id is unavailable pre initialization
+		// both have same orientation (hence identical rotation quaternion, which is what we use)
+		privateNh.param("base_frame_id", _tf_camera_link_name, std::string(""));
+		// optional argument to force selection of specific sensor to RS ros node by serial no
 		privateNh.param("serial_no", _serial_no, std::string(""));
+		// optional argument to overide TF URDF specs and select according to manually specified orentation
+		// to be used for testing experimental arrangements
 		privateNh.param("accel_orientation", _accel_orientation, std::string(""));
 
 		std::string rosbag_filename("");
