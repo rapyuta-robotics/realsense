@@ -89,6 +89,14 @@
   <arg name="unite_imu_method"         default="none"/> <!-- Options are: [none, copy, linear_interpolation] -->
   <arg name="allow_no_texture_points"  default="false"/>
 
+  <arg name="enable_bright_region_removal"   default="false"/>
+  <arg name="r_blurring"                     default="2"/>
+  <arg name="r_dilation"                     default="15"/>
+  <arg name="bright_thresh"                  default="220"/>
+
+  <arg name="r_ignore_v"                     default="0"/>
+  <arg name="r_ignore_h"                     default="0"/>
+
 
   <node unless="$(arg external_manager)" pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" required="$(arg required)"/>
   <node pkg="nodelet" type="nodelet" name="realsense2_camera" args="load realsense2_camera/RealSenseNodeFactory $(arg manager)" required="$(arg required)">
@@ -176,6 +184,14 @@
     <param name="initial_reset"            type="bool"   value="$(arg initial_reset)"/>
     <param name="unite_imu_method"         type="str"    value="$(arg unite_imu_method)"/>
     <param name="allow_no_texture_points"  type="bool"   value="$(arg allow_no_texture_points)"/>
+
+    <param name="enable_bright_region_removal"  type="bool"  value="$(arg enable_bright_region_removal)"/>
+    <param name="r_blurring"                    type="int"   value="$(arg r_blurring)"/>
+    <param name="r_dilation"                    type="int"   value="$(arg r_dilation)"/>
+    <param name="bright_thresh"                 type="int"   value="$(arg bright_thresh)"/>
+
+    <param name="r_ignore_v"                    type="int"   value="$(arg r_ignore_v)"/>
+    <param name="r_ignore_h"                    type="int"   value="$(arg r_ignore_h)"/>
 
   </node>
 </launch>

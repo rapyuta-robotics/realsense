@@ -54,6 +54,14 @@
   <arg name="publish_odom_tf"           default="true"/>
   <arg name="allow_no_texture_points"   default="false"/>
 
+  <arg name="enable_bright_region_removal"   default="false"/>
+  <arg name="r_blurring"                     default="2"/>
+  <arg name="r_dilation"                     default="15"/>
+  <arg name="bright_thresh"                  default="220"/>
+
+  <arg name="r_ignore_v"                     default="0"/>
+  <arg name="r_ignore_h"                     default="0"/>
+
   <group ns="$(arg camera)">
     <include file="$(find realsense2_camera)/launch/includes/nodelet.launch.xml">
       <arg name="tf_prefix"                value="$(arg tf_prefix)"/>
@@ -108,6 +116,15 @@
       <arg name="calib_odom_file"          value="$(arg calib_odom_file)"/>
       <arg name="publish_odom_tf"          value="$(arg publish_odom_tf)"/>
       <arg name="allow_no_texture_points"  value="$(arg allow_no_texture_points)"/>
+
+      <arg name="enable_bright_region_removal"  value="$(arg enable_bright_region_removal)"/>
+      <arg name="r_blurring"                    value="$(arg r_blurring)"/>
+      <arg name="r_dilation"                    value="$(arg r_dilation)"/>
+      <arg name="bright_thresh"                 value="$(arg bright_thresh)"/>
+
+      <arg name="r_ignore_v"                    value="$(arg r_ignore_v)"/>
+      <arg name="r_ignore_h"                    value="$(arg r_ignore_h)"/>
+
     </include>
   </group>
 </launch>

@@ -14,6 +14,98 @@ using namespace ddynamic_reconfigure;
 #define OPTICAL_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << "camera_" << STREAM_NAME(sip) << "_optical_frame")).str()
 #define ALIGNED_DEPTH_TO_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << "camera_aligned_depth_to_" << STREAM_NAME(sip) << "_frame")).str()
 
+namespace
+{
+    void box_filter(const uint8_t* src, int* dst, int width, int height, int r)
+    {
+        std::vector<int> buf(width * height);
+
+        int* sum_x = buf.data();
+        int* sum_xy = dst;
+
+        memset(sum_x, 0, width * height * sizeof(sum_x[0]));
+        memset(sum_xy, 0, width * height * sizeof(sum_xy[0]));
+
+        // Summing horizontally
+        for (int y = 0; y < height; ++y)
+        {
+            const uint8_t *p_src = src + (y * width);
+            int *p_sum = sum_x + (y * width);
+
+            p_sum[0] = r * p_src[0];
+            for (int xx = 0; xx <= r; ++xx) {
+                p_sum[0] += int(p_src[xx]);
+            }
+
+            for (int x = 1;         x < r + 1;     ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[0]);
+            }
+            for (int x = r + 1;     x < width - r; ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[x + r]) - int(p_src[x - r - 1]);
+            }
+            for (int x = width - r; x < width;     ++x) {
+                p_sum[x] = p_sum[x - 1] + int(p_src[width - 1]) - int(p_src[x - r - 1]);
+            }
+        }
+
+        // Summing vertically
+        for (int x = 0; x < width; ++x) { // y = 0
+            int *p_src = sum_x + x;
+            int *p_sum = sum_xy + x;
+
+            p_sum[0] = r * p_src[0];
+            for (int yy = 0; yy <= r; ++yy) {
+                p_sum[0] += int(p_src[yy * width]);
+            }
+        }
+        for (int y = 1; y < r + 1; ++y)
+        {
+            for (int x = 0; x < width; ++x) {
+                int *p_src = sum_x + x;
+                int *p_sum = sum_xy + x;
+                p_sum[y * width] = p_sum[(y - 1) * width] + int(p_src[(y + r) * width]) - int(p_src[0 * width]);
+            }
+        }
+        for (int y = r + 1; y < height - r; ++y)
+        {
+            for (int x = 0; x < width; ++x) {
+                int *p_src = sum_x + x;
+                int *p_sum = sum_xy + x;
+                p_sum[y * width] = p_sum[(y - 1) * width] + int(p_src[(y + r) * width]) - int(p_src[(y - r - 1) * width]);
+            }
+        }
+        for (int y = height - r; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x) {
+                int *p_src = sum_x + x;
+                int *p_sum = sum_xy + x;
+                p_sum[y * width] = p_sum[(y - 1) * width] + int(p_src[(height - 1) * width]) - int(p_src[(y - r - 1) * width]);
+            }
+        }
+    }
+
+    void mark_bright_regions(const uint8_t* guide, uint8_t* bright, int width, int height, int r_blr, int r_dil, int thresh)
+    {
+        std::vector<int> sum(width * height);
+        int* p_sum = sum.data();
+
+        // Blurring (summing without normalization)
+        box_filter(guide, p_sum, width, height, r_blr);
+
+        // if blurred pixels are brighter than 'thresh'
+        int thresh_sum = thresh * (2 * r_blr + 1) * (2 * r_blr + 1);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > thresh_sum ? 1 : 0);
+        }
+
+        // if any of the pixels around are bright
+        box_filter(bright, p_sum, width, height, r_dil);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > 0 ? 1 : 0);
+        }
+    }
+}
+
 SyncedImuPublisher::SyncedImuPublisher(ros::Publisher imu_publisher, std::size_t waiting_list_size):
             _publisher(imu_publisher), _pause_mode(false),
             _waiting_list_size(waiting_list_size)
@@ -612,6 +704,14 @@ void BaseRealSenseNode::getParameters()
     _pnh.param("angular_velocity_cov", _angular_velocity_cov, static_cast<double>(0.01));
     _pnh.param("hold_back_imu_for_frames", _hold_back_imu_for_frames, HOLD_BACK_IMU_FOR_FRAMES);
     _pnh.param("publish_odom_tf", _publish_odom_tf, PUBLISH_ODOM_TF);
+
+    _pnh.param("enable_bright_region_removal", _enable_bright_region_removal, ENABLE_BRIGHT_REGION_REMOVAL);
+    _pnh.param("r_blurring", _r_blurring, static_cast<int>(2));
+    _pnh.param("r_dilation", _r_dilation, static_cast<int>(15));
+    _pnh.param("bright_thresh", _bright_thresh, static_cast<int>(220));
+
+    _pnh.param("r_ignore_v", _r_ignore_v, static_cast<int>(0));
+    _pnh.param("r_ignore_h", _r_ignore_h, static_cast<int>(0));
 }
 
 void BaseRealSenseNode::setupDevice()
@@ -1145,6 +1245,82 @@ void BaseRealSenseNode::clip_depth(rs2::depth_frame depth_frame, float clipping_
     }
 }
 
+bool BaseRealSenseNode::remove_bright_regions(rs2::depth_frame depth_frame, const rs2::video_frame& ir)
+{
+    int width = depth_frame.get_width();
+    int height = depth_frame.get_height();
+
+    if ((width != ir.get_width()) || (height != ir.get_height()))
+    {
+        ROS_WARN("Disabled bright region depth removal (Sizes of infra1 and depth frames are different)");
+        return false;
+    }
+
+    if (std::min(_r_blurring, _r_dilation) < 0 ||
+            std::max(_r_blurring, _r_dilation) > ((std::min(width, height) - 1) / 2))
+    {
+        ROS_WARN("Disabled bright region depth removal (Invalid region parameters)");
+        return false;
+    }
+
+    const uint8_t* p_ir = reinterpret_cast<uint8_t*>(const_cast<void*>(ir.get_data()));
+
+    std::vector<uint8_t> invalid_map(width * height);
+    uint8_t* p_invalid = invalid_map.data();
+    mark_bright_regions(p_ir, p_invalid, width, height, _r_blurring, _r_dilation, _bright_thresh);
+
+    uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
+    for (int i = 0; i < width * height; ++i)
+    {
+        if (p_invalid[i]) {
+            p_depth[i] = INVALID_DEPTH;
+        }
+    }
+
+    return true;
+}
+
+void BaseRealSenseNode::remove_boundary(rs2::depth_frame depth_frame)
+{
+    int width = depth_frame.get_width();
+    int height = depth_frame.get_height();
+
+    if (2 * _r_ignore_v > height || 2 * _r_ignore_h > width)
+    {
+        ROS_WARN("Disabled boundary depth removal (Invalid parameters)");
+        return;
+    }
+
+    uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
+    if (_r_ignore_v > 0)
+    {
+        for (int x = 0; x < width; ++x) { // y = 0
+            p_depth[x] = INVALID_DEPTH;
+        }
+        for (int y = 1; y < _r_ignore_v; ++y) {
+            memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
+        }
+        for (int y = height - _r_ignore_v; y < height; ++y) {
+            memcpy(p_depth + y * width, p_depth, width * sizeof(p_depth[0]));
+        }
+    }
+
+    if (_r_ignore_h > 0)
+    {
+        int y_min = std::max(0, _r_ignore_v);
+        int y_max = std::min(height - 1, height - _r_ignore_v - 1);
+        for (int y = y_min; y <= y_max; ++y)
+        {
+            for (int x = 0; x < _r_ignore_h; ++x) {
+                p_depth[y * width + x] = INVALID_DEPTH;
+            }
+            for (int x = width - _r_ignore_h; x < width; ++x) {
+                p_depth[y * width + x] = INVALID_DEPTH;
+            }
+        }
+    }
+}
+
 BaseRealSenseNode::CIMUHistory::CIMUHistory(size_t size)
 {
     m_max_size = size;
@@ -1517,11 +1693,37 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                             rs2_stream_to_string(stream_type), stream_index, rs2_format_to_string(stream_format), stream_unique_id, frame.get_frame_number(), frame_time, t.toNSec());
                 runFirstFrameInitialization(stream_type);
             }
-            // Clip depth_frame for max range:
+            // Filter depth
+            // 1. Clip depth_frame for max range:
+            // 2. Remove bright regions:
+            bool bright_removed(false);
             rs2::depth_frame depth_frame = frameset.get_depth_frame();
-            if (depth_frame && _clipping_distance > 0)
+            if (depth_frame)
             {
-                clip_depth(depth_frame, _clipping_distance);
+                if (_clipping_distance > 0)
+                {
+                    clip_depth(depth_frame, _clipping_distance);
+                }
+
+                if (_enable_bright_region_removal)
+                {
+                    rs2::frameset fs = frame.as<rs2::frameset>();
+                    auto ir = fs.as<rs2::frameset>().get_infrared_frame(1);
+                    if (ir)
+                    {
+                        // Bright region removal
+                        // TODO: to plugin?
+                        bright_removed = remove_bright_regions(depth_frame, ir);
+                    }
+                    else{
+                        ROS_WARN("Skip bright region depth removal (No infra1 frame received)");
+                    }
+                }
+
+                if (_r_ignore_v > 0 || _r_ignore_h > 0)
+                {
+                    remove_boundary(depth_frame);
+                }
             }
 
             ROS_DEBUG("num_filters: %d", static_cast<int>(_filters.size()));
@@ -1596,8 +1798,15 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 {
                     if (0 != _pointcloud_publisher.getNumSubscribers())
                     {
-                        ROS_DEBUG("Publish pointscloud");
-                        publishPointCloud(f.as<rs2::points>(), t, frameset);
+                        if (_enable_bright_region_removal && (!bright_removed))
+                        {
+                            ROS_WARN("Skip publishing pointcloud (Failed bright region depth removal)");
+                        }
+                        else
+                        {
+                            ROS_DEBUG("Publish pointscloud");
+                            publishPointCloud(f.as<rs2::points>(), t, frameset);
+                        }
                     }
                     continue;
                 }
@@ -1631,6 +1840,11 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 if (_clipping_distance > 0)
                 {
                     clip_depth(frame, _clipping_distance);
+                }
+
+                if (_r_ignore_v > 0 || _r_ignore_h > 0)
+                {
+                    remove_boundary(frame);
                 }
             }
             publishFrame(frame, t,

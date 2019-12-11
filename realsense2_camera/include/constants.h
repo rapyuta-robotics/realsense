@@ -40,6 +40,7 @@ namespace realsense2_camera
     const bool POINTCLOUD     = false;
     const bool ALLOW_NO_TEXTURE_POINTS = false;
     const bool SYNC_FRAMES    = false;
+    const bool ENABLE_BRIGHT_REGION_REMOVAL = false;
 
     const bool PUBLISH_TF        = true;
     const double TF_PUBLISH_RATE = 0; // Static transform
@@ -50,6 +51,7 @@ namespace realsense2_camera
 
     const int IMU_FPS         = 0;
 
+    const uint16_t INVALID_DEPTH = 0;
 
     const bool ENABLE_DEPTH   = true;
     const bool ENABLE_INFRA1  = true;
