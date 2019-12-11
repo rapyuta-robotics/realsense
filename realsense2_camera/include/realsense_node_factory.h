@@ -15,8 +15,6 @@
 #include <cv_bridge/cv_bridge.h>
 #include <constants.h>
 #include <realsense2_camera/Extrinsics.h>
-#include <tf/transform_broadcaster.h>
-#include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 #include <realsense2_camera/IMUInfo.h>
 #include <csignal>
@@ -78,6 +76,8 @@ namespace realsense2_camera
         std::string _tf_reference_link_name;
         std::string _serial_no;
         std::string _accel_orientation;
+        std::string _usb_port_id;
+        std::string _device_type;
         bool _initial_reset;
         std::thread _query_thread;
 
