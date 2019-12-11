@@ -106,6 +106,27 @@ namespace
             bright[i] = (p_sum[i] > 0 ? 1 : 0);
         }
     }
+
+    void mark_repeat_patterns(const uint8_t* guide, uint8_t* bright, int width, int height, int max_dis_sft, float peak_con_thresh)
+    {
+        std::vector<int> sum(width * height);
+        int* p_sum = sum.data();
+
+        // Blurring (summing without normalization)
+        box_filter(guide, p_sum, width, height, r_blr);
+
+        // if blurred pixels are brighter than 'thresh'
+        int thresh_sum = thresh * (2 * r_blr + 1) * (2 * r_blr + 1);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > thresh_sum ? 1 : 0);
+        }
+
+        // if any of the pixels around are bright
+        box_filter(bright, p_sum, width, height, r_dil);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > 0 ? 1 : 0);
+        }
+    }
 }
 
 SyncedImuPublisher::SyncedImuPublisher(ros::Publisher imu_publisher, std::size_t waiting_list_size):
@@ -1327,29 +1348,29 @@ void BaseRealSenseNode::remove_boundary(rs2::depth_frame depth_frame)
     }
 }
 
-bool BaseRealSenseNode::filter_repeat_patterns(rs2::depth_frame depth_frame, const rs2::video_frame& ir)
+bool BaseRealSenseNode::filter_repeat_patterns(rs2::depth_frame depth_frame, const rs2::video_frame& ir_frame)
 {
     int width = depth_frame.get_width();
     int height = depth_frame.get_height();
 
-    if ((width != ir.get_width()) || (height != ir.get_height()))
+    if ((width != ir_frame.get_width()) || (height != ir_frame.get_height()))
     {
-        ROS_WARN("Disabled bright region depth removal (Sizes of infra1 and depth frames are different)");
+        ROS_WARN("Disabled repeat pattern filter (Sizes of infra1 and depth frames are different)");
         return false;
     }
 
-    if (std::min(_r_blurring, _r_dilation) < 0 ||
-            std::max(_r_blurring, _r_dilation) > ((std::min(width, height) - 1) / 2))
+    // need to add proper parameter validity checks
+    /*if (_max_disparity_shift valid range && _peak_concavity_thresh valid range)
     {
-        ROS_WARN("Disabled bright region depth removal (Invalid region parameters)");
+        ROS_WARN("Disabled repeat pattern filter (Invalid parameters)");
         return false;
-    }
+    }*/
 
-    const uint8_t* p_ir = reinterpret_cast<uint8_t*>(const_cast<void*>(ir.get_data()));
+    const uint8_t* p_ir = reinterpret_cast<uint8_t*>(const_cast<void*>(ir_frame.get_data()));
 
     std::vector<uint8_t> invalid_map(width * height);
     uint8_t* p_invalid = invalid_map.data();
-    mark_bright_regions(p_ir, p_invalid, width, height, _r_blurring, _r_dilation, _bright_thresh);
+    mark_repeat_patterns(p_ir, p_invalid, width, height, _max_disparity_shift, _peak_concavity_thresh);
 
     uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
     for (int i = 0; i < width * height; ++i)
