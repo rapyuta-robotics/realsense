@@ -67,7 +67,8 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 		{
 			bool found = false;
 
-			if (_accel_orientation.empty()) // generate accel orientation vector from camera quaternion
+			// forcing serial no based device assignment overrides auto orientation based detection
+			if (_serial_no.empty() && _accel_orientation.empty()) // generate accel orientation vector from camera quaternion
 			{
 				try {
 					geometry_msgs::TransformStamped transformStamped = 
@@ -97,9 +98,12 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 				}
 			}
 
-			// correctly decode and fill rs2_vector for expected median accelerometer orientation vector
-			rs2_vector accel_orientation_vec;
-			sscanf (_accel_orientation.c_str(), "%f%f%f", &accel_orientation_vec.x, &accel_orientation_vec.y, &accel_orientation_vec.z);
+			rs2_vector accel_orientation_vec = {};
+			if (!_accel_orientation.empty())
+			{
+				// correctly decode and fill rs2_vector for expected median accelerometer orientation vector
+				sscanf (_accel_orientation.c_str(), "%f%f%f", &accel_orientation_vec.x, &accel_orientation_vec.y, &accel_orientation_vec.z);
+			}
 			ROS_DEBUG_STREAM("Looking for " << _camera_name << " device with orientation " << accel_orientation_vec);
 
 			for (auto&& dev : list)
@@ -155,7 +159,8 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 					found_device_type = std::regex_search(name, base_match, device_type_regex);
 				}
 
-				if (_serial_no.empty() && !_accel_orientation.empty()) // auto determine correct realsense orientation
+				bool accel_match = false;
+				if (!_accel_orientation.empty()) // auto determine correct realsense orientation
 				{
 					rs2::pipeline pipe;
 					rs2::config cfg;
@@ -208,46 +213,30 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 							ROS_DEBUG_STREAM("Received orientation " << accel_sample << " from device serial no " << sn);
 							if (match_accel_vectors(accel_sample, accel_orientation_vec, 2.0f))
 							{
-								_device = dev;
-								_serial_no = sn;
-								found = true;
-								ROS_INFO_STREAM("Device serial no " << sn << " with orientation " << accel_sample << " assigned to " << _camera_name);
+								accel_match = true;
+								ROS_INFO_STREAM("Device serial no " << sn << " with orientation " << accel_sample << " was found.");
 								break;
 							}
 						}
 					}
 
-					if (success) {
+					if (success)
+					{
 						pipe.stop(); // stop pipe only if pipe start succeeded earlier
 					}
+				}
 
-					if (found) // found one matching device in correct orientation, no need to look for more
-					{
-						break;
-					}
-				} else {
-           //if ((_serial_no.empty() || sn == _serial_no) && (_usb_port_id.empty() || port_id == _usb_port_id) && found_device_type)
+				if ((_serial_no.empty() || sn == _serial_no) && (_accel_orientation.empty() || accel_match) && (_usb_port_id.empty() || port_id == _usb_port_id) && found_device_type)
+				{
 					_device = dev;
 					_serial_no = sn;
 					found = true;
+					ROS_INFO_STREAM("Device serial no " << sn << " matching orientation " << accel_orientation_vec << " assigned to " << _camera_name);
 					break;
 				}
 			}
 			if (!found)
 			{
-				/*if (!_serial_no.empty())
-				{
-					// T265 could be caught by another node.
-					ROS_ERROR_STREAM("The requested device with serial number " << _serial_no << " is NOT found. Will Try again.");
-				} else if (!_accel_orientation.empty())
-				{
-					// error: wrong orientation after 5 attempts
-					ROS_ERROR_STREAM("The requested device with orientation " << _accel_orientation << " is NOT found. Will Try again.");
-				} else
-				{
-					// could not assign any available device
-					ROS_ERROR_STREAM("No available devices found.");
-				}*/
 				// T265 could be caught by another node.
 				std::string msg ("The requested device with ");
 				bool add_and(false);
@@ -357,8 +346,8 @@ void RealSenseNodeFactory::onInit()
 		// optional argument to overide TF URDF specs and select according to manually specified orentation
 		// to be used for testing experimental arrangements
 		privateNh.param("accel_orientation", _accel_orientation, std::string(""));
-    privateNh.param("usb_port_id", _usb_port_id, std::string(""));
-    privateNh.param("device_type", _device_type, std::string(""));
+		privateNh.param("usb_port_id", _usb_port_id, std::string(""));
+		privateNh.param("device_type", _device_type, std::string(""));
 
 		std::string rosbag_filename("");
 		privateNh.param("rosbag_filename", rosbag_filename, std::string(""));
