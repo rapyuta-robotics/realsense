@@ -15,11 +15,13 @@
 #include <cv_bridge/cv_bridge.h>
 #include <constants.h>
 #include <realsense2_camera/Extrinsics.h>
+#include <tf2_ros/transform_listener.h>
 #include <realsense2_camera/IMUInfo.h>
 #include <csignal>
 #include <eigen3/Eigen/Geometry>
 #include <fstream>
 #include <thread>
+#include <memory>
 
 namespace realsense2_camera
 {
@@ -64,10 +66,16 @@ namespace realsense2_camera
         virtual void onInit() override;
         void tryGetLogSeverity(rs2_log_severity& severity) const;
 
+        tf2_ros::Buffer _tf_buffer; // need to be persistent as per tf2_ros design document
+        std::unique_ptr<tf2_ros::TransformListener> _tf_listener; // need to be persistent
         rs2::device _device;
         std::unique_ptr<InterfaceRealSenseNode> _realSenseNode;
         rs2::context _ctx;
+        std::string _camera_name;
+        std::string _tf_camera_link_name;
+        std::string _tf_reference_link_name;
         std::string _serial_no;
+        std::string _accel_orientation;
         std::string _usb_port_id;
         std::string _device_type;
         bool _initial_reset;
