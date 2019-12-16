@@ -23,8 +23,8 @@ install:
   - sudo rosdep init
   - rosdep update
   - echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
-  - rosdep install --from-paths . -iry
   - source ~/.bashrc
+  - rosdep install --from-paths . -iry
   - mkdir -p ~/catkin_ws/src/realsense
 
   # install realsense2-camera
