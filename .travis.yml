@@ -23,11 +23,7 @@ install:
   - sudo rosdep init
   - rosdep update
   - echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
-  - sudo apt-get install ros-melodic-cv-bridge -y
-  - sudo apt-get install ros-melodic-image-transport -y
-  - sudo apt-get install ros-melodic-tf -y
-  - sudo apt-get install ros-melodic-diagnostic-updater -y
-  - sudo apt-get install ros-melodic-ddynamic-reconfigure -y
+  - rosdep install --from-paths . -iry
   - source ~/.bashrc
   - mkdir -p ~/catkin_ws/src/realsense
 
