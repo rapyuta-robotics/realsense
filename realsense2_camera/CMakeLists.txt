@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
     image_transport
     tf
     ddynamic_reconfigure
+    tf2_geometry_msgs
     diagnostic_updater
     )
 
