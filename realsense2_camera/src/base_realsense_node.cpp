@@ -107,9 +107,9 @@ namespace
         }
     }
 
-    void mark_repeat_patterns(const uint8_t* guide, uint8_t* bright, int width, int height, int max_dis_sft, float peak_con_thresh)
+    void mark_repeat_patterns(const uint8_t* guide, uint8_t* repeat, int width, int height, int max_dis_sft, float peak_con_thresh)
     {
-        std::vector<int> sum(width * height);
+        /*std::vector<int> sum(width * height);
         int* p_sum = sum.data();
 
         // Blurring (summing without normalization)
@@ -122,9 +122,9 @@ namespace
         }
 
         // if any of the pixels around are bright
-        box_filter(bright, p_sum, width, height, r_dil);
+        box_filter(bright, p_sum, width, height, r_dil);*/
         for (int i = 0; i < width * height; ++i) {
-            bright[i] = (p_sum[i] > 0 ? 1 : 0);
+            repeat[i] = (false ? 1 : 0);
         }
     }
 }
@@ -1790,8 +1790,10 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
 
                 if (_enable_repeat_pattern_filter)
                 {
+                    static int count_total = 0, count_skipped = 0;
                     rs2::frameset fs = frame.as<rs2::frameset>();
                     auto ir = fs.as<rs2::frameset>().get_infrared_frame(1);
+                    count_total++;
                     if (ir)
                     {
                         // repeat pattern filter
@@ -1799,7 +1801,8 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                         pattern_filtered = filter_repeat_patterns(depth_frame, ir);
                     }
                     else{
-                        ROS_WARN("Skip repeat pattern filter (No infra1 frame received)");
+                        count_skipped++;
+                        ROS_WARN_STREAM("Skip repeat pattern filter (No infra1 frame received)." << " Skipped " << count_skipped << "/" << count_total << "frames.");
                     }
                 }
             }
