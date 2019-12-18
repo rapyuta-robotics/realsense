@@ -1675,6 +1675,10 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
             t = ros::Time(_ros_time_base.toSec()+ (/*ms*/ frame_time - /*ms*/ _camera_time_base) / /*ms to seconds*/ 1000);
         }
 
+        /*static ros::Time prev_time = t;
+        ROS_WARN_STREAM("Last frame time " << (t.toNSec() - prev_time.toNSec()) / 1000000UL << "ms");
+        prev_time = t;*/
+
         if (frame.is<rs2::frameset>())
         {
             ROS_DEBUG("Frameset arrived.");
@@ -1698,6 +1702,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
             // 2. Remove bright regions:
             bool bright_removed(false);
             rs2::depth_frame depth_frame = frameset.get_depth_frame();
+            rs2::video_frame infrared1_frame = frameset.get_infrared_frame(1);
             if (depth_frame)
             {
                 if (_clipping_distance > 0)
@@ -1707,16 +1712,17 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
 
                 if (_enable_bright_region_removal)
                 {
-                    rs2::frameset fs = frame.as<rs2::frameset>();
-                    auto ir = fs.as<rs2::frameset>().get_infrared_frame(1);
-                    if (ir)
+                    static int count_total = 0, count_skipped = 0; 
+                    count_total++;
+                    if (infrared1_frame)
                     {
                         // Bright region removal
                         // TODO: to plugin?
-                        bright_removed = remove_bright_regions(depth_frame, ir);
+                        bright_removed = remove_bright_regions(depth_frame, infrared1_frame);
                     }
                     else{
-                        ROS_WARN("Skip bright region depth removal (No infra1 frame received)");
+                        count_skipped++;
+                        ROS_WARN_STREAM("Skip bright region depth removal (No infra1 frame received)." << " Skipped " << count_skipped << "/" << count_total << "frames.");
                     }
                 }
 
