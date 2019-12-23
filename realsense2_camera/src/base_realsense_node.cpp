@@ -1675,6 +1675,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
             t = ros::Time(_ros_time_base.toSec()+ (/*ms*/ frame_time - /*ms*/ _camera_time_base) / /*ms to seconds*/ 1000);
         }
 
+        // debug code to measure fps. left here to be used in all filter development
         /*static ros::Time prev_time = t;
         ROS_WARN_STREAM("Last frame time " << (t.toNSec() - prev_time.toNSec()) / 1000000UL << "ms");
         prev_time = t;*/
@@ -1722,7 +1723,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                     }
                     else{
                         count_skipped++;
-                        ROS_WARN_STREAM("Skip bright region depth removal (No infra1 frame received)." << " Skipped " << count_skipped << "/" << count_total << "frames.");
+                        ROS_DEBUG_STREAM("Skip bright region depth removal (No infra1 frame received)." << " Skipped " << count_skipped << "/" << count_total << "frames.");
                     }
                 }
 
