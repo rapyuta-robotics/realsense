@@ -1713,8 +1713,13 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
 
                 if (_enable_bright_region_removal)
                 {
-                    static int count_total = 0, count_skipped = 0; 
-                    count_total++;
+                    static unsigned long count_total = 0, count_skipped = 0;
+                    ++count_total;
+                    // reset counter at max range
+                    if (std::numeric_limits<unsigned long>::max() == count_total)
+                    {
+                        count_total = 0, count_skipped = 0;
+                    }
                     if (infrared1_frame)
                     {
                         // Bright region removal
@@ -1722,7 +1727,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                         bright_removed = remove_bright_regions(depth_frame, infrared1_frame);
                     }
                     else{
-                        count_skipped++;
+                        ++count_skipped;
                         ROS_DEBUG_STREAM("Skip bright region depth removal (No infra1 frame received)." << " Skipped " << count_skipped << "/" << count_total << "frames.");
                     }
                 }
