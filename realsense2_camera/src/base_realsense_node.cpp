@@ -1718,6 +1718,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                     // reset counter at max range
                     if (std::numeric_limits<unsigned long>::max() == count_total)
                     {
+                        ROS_WARN_STREAM("Max frames reached. Counter reset.");
                         count_total = 0, count_skipped = 0;
                     }
                     if (infrared1_frame)
