@@ -1675,6 +1675,11 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
             t = ros::Time(_ros_time_base.toSec()+ (/*ms*/ frame_time - /*ms*/ _camera_time_base) / /*ms to seconds*/ 1000);
         }
 
+        // debug code to measure fps. left here to be used in all filter development
+        /*static ros::Time prev_time = t;
+        ROS_WARN_STREAM("Last frame time " << (t.toNSec() - prev_time.toNSec()) / 1000000UL << "ms");
+        prev_time = t;*/
+
         if (frame.is<rs2::frameset>())
         {
             ROS_DEBUG("Frameset arrived.");
@@ -1698,6 +1703,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
             // 2. Remove bright regions:
             bool bright_removed(false);
             rs2::depth_frame depth_frame = frameset.get_depth_frame();
+            rs2::video_frame infrared1_frame = frameset.get_infrared_frame(1);
             if (depth_frame)
             {
                 if (_clipping_distance > 0)
@@ -1707,16 +1713,24 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
 
                 if (_enable_bright_region_removal)
                 {
-                    rs2::frameset fs = frame.as<rs2::frameset>();
-                    auto ir = fs.as<rs2::frameset>().get_infrared_frame(1);
-                    if (ir)
+                    static unsigned long count_total = 0, count_skipped = 0;
+                    ++count_total;
+                    // reset counter at max range
+                    if (std::numeric_limits<unsigned long>::max() == count_total)
+                    {
+                        ROS_WARN_STREAM("Max frames reached. Counter reset.");
+                        count_total = 0, count_skipped = 0;
+                    }
+                    if (infrared1_frame)
                     {
                         // Bright region removal
                         // TODO: to plugin?
-                        bright_removed = remove_bright_regions(depth_frame, ir);
+                        bright_removed = remove_bright_regions(depth_frame, infrared1_frame);
                     }
                     else{
-                        ROS_WARN("Skip bright region depth removal (No infra1 frame received)");
+                        ++count_skipped;
+                        double frame_loss = 100.0 * (double (count_skipped) / double (count_total));
+                        ROS_DEBUG("Skip bright region depth removal (No infra1 frame received). Skipped %5.2f%% frames.\n", frame_loss);
                     }
                 }
 
