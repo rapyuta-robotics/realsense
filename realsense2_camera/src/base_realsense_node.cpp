@@ -1729,7 +1729,8 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                     }
                     else{
                         ++count_skipped;
-                        ROS_DEBUG_STREAM("Skip bright region depth removal (No infra1 frame received)." << " Skipped " << count_skipped << "/" << count_total << "frames.");
+                        double frame_loss = 100.0 * (double (count_skipped) / double (count_total));
+                        ROS_DEBUG("Skip bright region depth removal (No infra1 frame received). Skipped %5.2f%% frames.\n", frame_loss);
                     }
                 }
 
