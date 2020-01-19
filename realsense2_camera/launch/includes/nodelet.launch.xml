@@ -97,6 +97,9 @@
   <arg name="r_ignore_v"                     default="0"/>
   <arg name="r_ignore_h"                     default="0"/>
 
+  <arg name="enable_repeat_pattern_filter"   default="false"/>
+  <arg name="max_disparity_shift"            default="24"/>
+  <arg name="peak_concavity_thresh"          default="0.33"/>
 
   <node unless="$(arg external_manager)" pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" required="$(arg required)"/>
   <node pkg="nodelet" type="nodelet" name="realsense2_camera" args="load realsense2_camera/RealSenseNodeFactory $(arg manager)" required="$(arg required)">
@@ -193,5 +196,8 @@
     <param name="r_ignore_v"                    type="int"   value="$(arg r_ignore_v)"/>
     <param name="r_ignore_h"                    type="int"   value="$(arg r_ignore_h)"/>
 
+    <param name="enable_repeat_pattern_filter"  type="bool"  value="$(arg enable_repeat_pattern_filter)"/>
+    <param name="max_disparity_shift"           type="int"   value="$(arg max_disparity_shift)"/>
+    <param name="peak_concavity_thresh"         type="float" value="$(arg peak_concavity_thresh)"/>
   </node>
 </launch>

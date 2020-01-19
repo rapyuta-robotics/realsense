@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cctype>
 #include <mutex>
+#include <tf/transform_broadcaster.h>
+#include <opencv2/opencv.hpp>
 
 using namespace realsense2_camera;
 using namespace ddynamic_reconfigure;
@@ -102,6 +104,27 @@ namespace
         box_filter(bright, p_sum, width, height, r_dil);
         for (int i = 0; i < width * height; ++i) {
             bright[i] = (p_sum[i] > 0 ? 1 : 0);
+        }
+    }
+
+    void mark_repeat_patterns(const uint8_t* guide, uint8_t* repeat, int width, int height, int max_dis_sft, float peak_con_thresh)
+    {
+        /*std::vector<int> sum(width * height);
+        int* p_sum = sum.data();
+
+        // Blurring (summing without normalization)
+        box_filter(guide, p_sum, width, height, r_blr);
+
+        // if blurred pixels are brighter than 'thresh'
+        int thresh_sum = thresh * (2 * r_blr + 1) * (2 * r_blr + 1);
+        for (int i = 0; i < width * height; ++i) {
+            bright[i] = (p_sum[i] > thresh_sum ? 1 : 0);
+        }
+
+        // if any of the pixels around are bright
+        box_filter(bright, p_sum, width, height, r_dil);*/
+        for (int i = 0; i < width * height; ++i) {
+            repeat[i] = (false ? 1 : 0);
         }
     }
 }
@@ -712,6 +735,10 @@ void BaseRealSenseNode::getParameters()
 
     _pnh.param("r_ignore_v", _r_ignore_v, static_cast<int>(0));
     _pnh.param("r_ignore_h", _r_ignore_h, static_cast<int>(0));
+
+    _pnh.param("enable_repeat_pattern_filter", _enable_repeat_pattern_filter, ENABLE_REPEAT_PATTERN_FILTER);
+    _pnh.param("max_disparity_shift", _max_disparity_shift, static_cast<int>(24));
+    _pnh.param("peak_concavity_thresh", _peak_concavity_thresh, static_cast<float>(0.33));
 }
 
 void BaseRealSenseNode::setupDevice()
@@ -1321,6 +1348,41 @@ void BaseRealSenseNode::remove_boundary(rs2::depth_frame depth_frame)
     }
 }
 
+bool BaseRealSenseNode::filter_repeat_patterns(rs2::depth_frame depth_frame, const rs2::video_frame& ir_frame)
+{
+    int width = depth_frame.get_width();
+    int height = depth_frame.get_height();
+
+    if ((width != ir_frame.get_width()) || (height != ir_frame.get_height()))
+    {
+        ROS_WARN("Disabled repeat pattern filter (Sizes of infra1 and depth frames are different)");
+        return false;
+    }
+
+    // need to add proper parameter validity checks
+    /*if (_max_disparity_shift valid range && _peak_concavity_thresh valid range)
+    {
+        ROS_WARN("Disabled repeat pattern filter (Invalid parameters)");
+        return false;
+    }*/
+
+    const uint8_t* p_ir = reinterpret_cast<uint8_t*>(const_cast<void*>(ir_frame.get_data()));
+
+    std::vector<uint8_t> invalid_map(width * height);
+    uint8_t* p_invalid = invalid_map.data();
+    mark_repeat_patterns(p_ir, p_invalid, width, height, _max_disparity_shift, _peak_concavity_thresh);
+
+    uint16_t* p_depth = reinterpret_cast<uint16_t*>(const_cast<void*>(depth_frame.get_data()));
+    for (int i = 0; i < width * height; ++i)
+    {
+        if (p_invalid[i]) {
+            p_depth[i] = INVALID_DEPTH;
+        }
+    }
+
+    return true;
+}
+
 BaseRealSenseNode::CIMUHistory::CIMUHistory(size_t size)
 {
     m_max_size = size;
@@ -1702,6 +1764,7 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
             // 1. Clip depth_frame for max range:
             // 2. Remove bright regions:
             bool bright_removed(false);
+            bool pattern_filtered(false);
             rs2::depth_frame depth_frame = frameset.get_depth_frame();
             rs2::video_frame infrared1_frame = frameset.get_infrared_frame(1);
             if (depth_frame)
@@ -1737,6 +1800,24 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 if (_r_ignore_v > 0 || _r_ignore_h > 0)
                 {
                     remove_boundary(depth_frame);
+                }
+
+                if (_enable_repeat_pattern_filter)
+                {
+                    static int count_total = 0, count_skipped = 0;
+                    rs2::frameset fs = frame.as<rs2::frameset>();
+                    auto ir = fs.as<rs2::frameset>().get_infrared_frame(1);
+                    count_total++;
+                    if (ir)
+                    {
+                        // repeat pattern filter
+                        // TODO: to plugin?
+                        pattern_filtered = filter_repeat_patterns(depth_frame, ir);
+                    }
+                    else{
+                        count_skipped++;
+                        ROS_WARN_STREAM("Skip repeat pattern filter (No infra1 frame received)." << " Skipped " << count_skipped << "/" << count_total << "frames.");
+                    }
                 }
             }
 
@@ -1812,11 +1893,20 @@ void BaseRealSenseNode::frame_callback(rs2::frame frame)
                 {
                     if (0 != _pointcloud_publisher.getNumSubscribers())
                     {
+                        bool filter_error = false;
                         if (_enable_bright_region_removal && (!bright_removed))
                         {
                             ROS_WARN("Skip publishing pointcloud (Failed bright region depth removal)");
+                            filter_error = true;
                         }
-                        else
+
+                        if (_enable_repeat_pattern_filter && (!pattern_filtered))
+                        {
+                            ROS_WARN("Skip publishing pointcloud (Failed repeat pattern filter)");
+                            filter_error = true;
+                        }
+
+                        if (!filter_error)
                         {
                             ROS_DEBUG("Publish pointscloud");
                             publishPointCloud(f.as<rs2::points>(), t, frameset);
