@@ -2,12 +2,16 @@
   <arg name="external_manager"    default="false"/>
   <arg name="manager"             default="realsense2_camera_manager"/>
   <arg name="serial_no"           default=""/>
+  <arg name="accel_orientation"   default=""/>
   <arg name="usb_port_id"         default=""/>
   <arg name="device_type"         default=""/>
+  <arg name="camera"              default=""/>
+  <arg name="reference_frame"     default=""/>
   <arg name="tf_prefix"           default=""/>
   <arg name="json_file_path"      default=""/>
   <arg name="rosbag_filename"     default=""/>
   <arg name="required"            default="false"/>
+  <arg name="respawn"             default="false"/>
 
   <arg name="fisheye_width"       default="0"/>
   <arg name="fisheye_height"      default="0"/>
@@ -44,6 +48,7 @@
   <arg name="enable_sync"         default="false"/>
   <arg name="align_depth"         default="false"/>
 
+  <arg name="reference_frame_id"        default="$(arg reference_frame)"/>
   <arg name="base_frame_id"             default="$(arg tf_prefix)_link"/>
   <arg name="depth_frame_id"            default="$(arg tf_prefix)_depth_frame"/>
   <arg name="infra1_frame_id"           default="$(arg tf_prefix)_infra1_frame"/>
@@ -97,10 +102,11 @@
   <arg name="r_ignore_v"                     default="0"/>
   <arg name="r_ignore_h"                     default="0"/>
 
-
-  <node unless="$(arg external_manager)" pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" required="$(arg required)"/>
-  <node pkg="nodelet" type="nodelet" name="realsense2_camera" args="load realsense2_camera/RealSenseNodeFactory $(arg manager)" required="$(arg required)">
+  <node unless="$(arg external_manager)" pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" required="$(arg required)" respawn="$(arg respawn)"/>
+  <node pkg="nodelet" type="nodelet" name="realsense2_camera" args="load realsense2_camera/RealSenseNodeFactory $(arg manager)" output="screen" required="$(arg required)" respawn="$(arg respawn)">
+    <param name="camera"                   type="str"  value="$(arg camera)"/>
     <param name="serial_no"                type="str"  value="$(arg serial_no)"/>
+    <param name="accel_orientation"        type="str"  value="$(arg accel_orientation)"/>
     <param name="usb_port_id"              type="str"  value="$(arg usb_port_id)"/>
     <param name="device_type"              type="str"  value="$(arg device_type)"/>
     <param name="json_file_path"           type="str"  value="$(arg json_file_path)"/>
@@ -140,6 +146,7 @@
     <param name="enable_gyro"              type="bool" value="$(arg enable_gyro)"/>
     <param name="enable_accel"             type="bool" value="$(arg enable_accel)"/>
 
+    <param name="reference_frame_id"       type="str"  value="$(arg reference_frame_id)"/>
     <param name="base_frame_id"            type="str"  value="$(arg base_frame_id)"/>
     <param name="depth_frame_id"           type="str"  value="$(arg depth_frame_id)"/>
     <param name="infra1_frame_id"          type="str"  value="$(arg infra1_frame_id)"/>
