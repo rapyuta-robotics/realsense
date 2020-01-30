@@ -68,7 +68,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 			bool found = false;
 
 			// forcing serial no based device assignment overrides auto orientation based detection
-			if (_serial_no.empty() && _accel_orientation.empty()) // generate accel orientation vector from camera quaternion
+			if (_serial_no.empty() && _accel_orientation.empty() && !_tf_reference_link_name.empty()) // generate accel orientation vector from camera quaternion
 			{
 				try {
 					geometry_msgs::TransformStamped transformStamped = 
