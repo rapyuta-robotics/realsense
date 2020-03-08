@@ -106,10 +106,11 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 			}
 			ROS_DEBUG_STREAM("Looking for " << _camera_name << " device with orientation " << accel_orientation_vec);
 
+      		ROS_INFO_STREAM(" ");
 			for (auto&& dev : list)
 			{
 				auto sn = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-				ROS_INFO_STREAM("Device with serial number " << sn << " was found.");
+				ROS_INFO_STREAM("Device with serial number " << sn << " was found."<<std::endl);
 				std::string pn = dev.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT);
 				std::string name = dev.get_info(RS2_CAMERA_INFO_NAME);
 				ROS_INFO_STREAM("Device with physical ID " << pn << " was found.");
@@ -123,7 +124,7 @@ void RealSenseNodeFactory::getDevice(rs2::device_list list)
 				}
 				else// if(strcmp(name, "Intel RealSense D435") == 0)
 				{
-					self_regex = std::regex("[^ ]*?usb[0-9]+/([0-9.-]+)/[^ ]*", std::regex_constants::ECMAScript);
+					self_regex = std::regex("[^ ]+/usb[0-9]+[0-9./-]*/([0-9.-]+):[^ ]*", std::regex_constants::ECMAScript);
 				}
 				std::smatch base_match;
 				bool found_usb_desc = std::regex_match(pn, base_match, self_regex);

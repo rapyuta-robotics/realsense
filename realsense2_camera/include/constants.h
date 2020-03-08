@@ -7,7 +7,7 @@
 
 #define REALSENSE_ROS_MAJOR_VERSION    2
 #define REALSENSE_ROS_MINOR_VERSION    2
-#define REALSENSE_ROS_PATCH_VERSION    9
+#define REALSENSE_ROS_PATCH_VERSION    12
 
 #define STRINGIFY(arg) #arg
 #define VAR_ARG_STRING(arg) STRINGIFY(arg)
@@ -41,6 +41,9 @@ namespace realsense2_camera
     const bool ALLOW_NO_TEXTURE_POINTS = false;
     const bool SYNC_FRAMES    = false;
     const bool ENABLE_BRIGHT_REGION_REMOVAL = false;
+
+    const bool PUBLISH_TF        = true;
+    const double TF_PUBLISH_RATE = 0; // Static transform
 
     const bool PUBLISH_TF        = true;
     const double TF_PUBLISH_RATE = 0; // Static transform
