@@ -1321,11 +1321,6 @@ void BaseRealSenseNode::remove_boundary(rs2::depth_frame depth_frame)
     }
 }
 
-BaseRealSenseNode::CIMUHistory::CIMUHistory(size_t size)
-{
-    m_max_size = size;
-}
-
 sensor_msgs::Imu BaseRealSenseNode::CreateUnitedMessage(const CimuData accel_data, const CimuData gyro_data)
 {
     sensor_msgs::Imu imu_msg;
