@@ -10,8 +10,8 @@ before_install:
     sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C8B3A55A6F3EFCDE
   - sudo add-apt-repository "deb http://realsense-hw-public.s3.amazonaws.com/Debian/apt-repo bionic main" -u
   - sudo apt-get update -qq
-  - sudo apt-get install librealsense2-dkms="1.3.5-0ubuntu1" --allow-unauthenticated -y
-  - sudo apt-get install librealsense2="2.29.0-0~realsense0.1580" librealsense2-dev="2.29.0-0~realsense0.1580" --allow-unauthenticated -y
+  - sudo apt-get install librealsense2-dkms="1.3.13-0ubuntu1" --allow-unauthenticated -y
+  - sudo apt-get install librealsense2="2.33.1-0~realsense0.2036" librealsense2-dev="2.33.1-0~realsense0.2036" --allow-unauthenticated -y
   - sudo apt-get install libeigen3-dev -y
 
 install:
@@ -39,7 +39,7 @@ install:
   - source ~/.bashrc
 
     # download data:
-  - bag_filename="http://realsense-hw-public.s3.amazonaws.com/rs-tests/TestData/outdoors.bag";
+  - bag_filename="http://realsense-hw-public.s3.amazonaws.com/rs-tests/TestData/outdoors_1color.bag";
   - wget $bag_filename -P "records/"
   - bag_filename="http://realsense-hw-public.s3-eu-west-1.amazonaws.com/rs-tests/D435i_Depth_and_IMU_Stands_still.bag";
   - wget $bag_filename -P "records/"
